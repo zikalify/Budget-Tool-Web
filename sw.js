@@ -1,4 +1,3 @@
-const CACHE = 'budget-tool-web-v17';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/money-bags.svg'];
 
 self.addEventListener('install', event => {
@@ -19,3 +18,4 @@ self.addEventListener('fetch', event => {
     return response;
   }).catch(() => caches.match('./index.html'))));
 });
+const CACHE = 'budget-tool-web-v20';
