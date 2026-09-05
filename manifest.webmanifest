@@ -1,0 +1,12 @@
+{
+  "name": "Budget Tool Web",
+  "short_name": "Budget Tool",
+  "description": "A private offline daily budget planner.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f4ed",
+  "theme_color": "#123c35",
+  "icons": [
+    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Money bags">
+  <path fill="#e1a93a" stroke="#123c35" stroke-width="7" d="M23 48c-7 9-9 39 2 55 9 13 31 13 43 3 8-7 10-25 6-42-2-9-7-14-13-17H30c-3 0-5 0-7 1Z"/>
+  <path fill="#f3c75f" stroke="#123c35" stroke-width="7" d="M38 45c-4-7-3-12 3-17l8-7 1-11h28l1 11 8 7c6 5 7 10 3 17H38Z"/>
+  <path fill="#d89029" stroke="#123c35" stroke-width="7" d="M73 54c-7 7-8 32 1 46 8 12 29 13 40 3 9-8 10-27 5-43-2-7-6-11-12-13H80c-3 1-5 3-7 7Z"/>
+  <path fill="#f3c75f" stroke="#123c35" stroke-width="7" d="M84 47c-3-6-2-10 3-14l7-6 1-9h24l1 9 7 6c5 4 6 8 3 14H84Z"/>
+  <path fill="none" stroke="#123c35" stroke-width="6" stroke-linecap="round" d="M49 69h16M57 61v27M91 72h14M98 65v25"/>
+</svg>
