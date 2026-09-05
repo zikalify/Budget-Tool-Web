@@ -30,7 +30,7 @@ function spends() { return state.transactions.filter(item => item.type === 'SPEN
 function income() { return state.transactions.filter(item => item.type === 'INCOME').reduce((total, item) => total + Number(item.value), 0); }
 function totalSpent() { return spends().reduce((total, item) => total + Number(item.value), 0); }
 function todaySpent() { return spends().filter(item => item.date === today()).reduce((total, item) => total + Number(item.value), 0); }
-function remainingBudget() { return Number(state.budget) - spends().filter(item => item.date !== today()).reduce((total, item) => total + Number(item.value), 0) - Number(state.spentFromDailyBudget || 0); }
+function remainingBudget() { const budget = Math.max(0, Number(state.budget) || 0); const calculated = budget - spends().filter(item => item.date !== today()).reduce((total, item) => total + Number(item.value), 0) - Number(state.spentFromDailyBudget || 0); return Math.max(0, Math.min(budget, calculated)); }
 function daysLeft() { return state.finishDate ? daysBetween(today(), state.finishDate) : 0; }
 function restToday() { return Number(state.dailyBudget || 0) - Number(state.spentFromDailyBudget || 0) - (Number(rawValue) || 0); }
 function normalize(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0; }
