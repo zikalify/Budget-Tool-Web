@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Money bags">
-  <path fill="#e1a93a" stroke="#123c35" stroke-width="7" d="M23 48c-7 9-9 39 2 55 9 13 31 13 43 3 8-7 10-25 6-42-2-9-7-14-13-17H30c-3 0-5 0-7 1Z"/>
-  <path fill="#f3c75f" stroke="#123c35" stroke-width="7" d="M38 45c-4-7-3-12 3-17l8-7 1-11h28l1 11 8 7c6 5 7 10 3 17H38Z"/>
-  <path fill="#d89029" stroke="#123c35" stroke-width="7" d="M73 54c-7 7-8 32 1 46 8 12 29 13 40 3 9-8 10-27 5-43-2-7-6-11-12-13H80c-3 1-5 3-7 7Z"/>
-  <path fill="#f3c75f" stroke="#123c35" stroke-width="7" d="M84 47c-3-6-2-10 3-14l7-6 1-9h24l1 9 7 6c5 4 6 8 3 14H84Z"/>
-  <path fill="none" stroke="#123c35" stroke-width="6" stroke-linecap="round" d="M49 69h16M57 61v27M91 72h14M98 65v25"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Pile of coins">
+  <path fill="#d89329" stroke="#123c35" stroke-width="7" d="M18 86v17c0 9 20 16 46 16s46-7 46-16V86"/>
+  <ellipse cx="64" cy="86" rx="46" ry="16" fill="#f3c75f" stroke="#123c35" stroke-width="7"/>
+  <path fill="#d89329" stroke="#123c35" stroke-width="7" d="M24 62v17c0 9 18 16 40 16s40-7 40-16V62"/>
+  <ellipse cx="64" cy="62" rx="40" ry="15" fill="#f6d36c" stroke="#123c35" stroke-width="7"/>
+  <path fill="#d89329" stroke="#123c35" stroke-width="7" d="M31 39v14c0 8 15 14 33 14s33-6 33-14V39"/>
+  <ellipse cx="64" cy="39" rx="33" ry="13" fill="#ffe083" stroke="#123c35" stroke-width="7"/>
+  <path fill="none" stroke="#123c35" stroke-width="5" stroke-linecap="round" d="M64 30v18M57 34c2-4 11-4 14 0 3 5-3 7-7 8-5 1-9 4-6 8 3 4 11 4 14 0"/>
 </svg>
