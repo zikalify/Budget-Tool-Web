@@ -1,4 +1,4 @@
-const CACHE = 'budget-tool-web-v41';
+const CACHE = 'budget-tool-web-v42';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/money-bags.svg'];
 
 self.addEventListener('install', event => {
