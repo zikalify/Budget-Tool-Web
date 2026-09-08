@@ -79,6 +79,23 @@ function render() {
   renderedSheet = sheet;
   bind();
 }
+
+// Sheets sit above the editor. Changing one must not recreate the editor below
+// it, otherwise the balance value visibly jumps as the sheet opens.
+function renderSheet() {
+  const root = document.querySelector('#app > .app-root');
+  const toast = document.getElementById('toast');
+  if (!root || !toast) {
+    render();
+    return;
+  }
+  root.querySelector('.sheet-layer')?.remove();
+  if (sheet) {
+    toast.insertAdjacentHTML('beforebegin', sheetView());
+    bind(toast.previousElementSibling);
+  }
+  renderedSheet = sheet;
+}
 function desktopHistory() { return `<aside class="history-pane"><div class="history-top"><div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>${history(false)}</aside>`; }
 function editor() { const mode = editingId ? 'EDIT' : 'ADD'; const active = Boolean(rawValue || editorComment || editingId); return `<section class="editor-shell"><header class="editor-toolbar">${mode === 'EDIT' ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>` : `<span class="editor-spacer"></span>`}<button class="budget-pill ${restToday() < 0 ? 'over' : ''}" data-action="wallet"><span class="pill-status">${state.budget ? (restToday() < 0 ? 'over budget' : 'left today') : 'set period'}</span><strong>${state.budget ? money(restToday()) : money(0)}</strong><i style="width:${Math.max(0, Math.min(100, state.dailyBudget ? (restToday() / state.dailyBudget) * 100 : 0))}%"></i></button><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></header><section class="amount-area"><span class="amount-label">${mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend'}</span><strong class="amount-display">${rawValue || '0'}</strong><span class="currency-label">${state.currency === 'NONE' ? '' : state.currency}</span></section>${mode === 'EDIT' ? dateEditor() : tagging()}${historyToggle()}</section>`; }
 function tagging() { const tags = [...new Set(spends().map(item => item.comment).filter(Boolean))].reverse(); return `<div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note" autocomplete="off"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div>${tags.length ? `<div class="tag-list">${tags.map(tag => `<button data-tag="${escapeAttr(tag)}">${escapeHtml(tag)}</button>`).join('')}</div>` : ''}</div>`; }
@@ -161,12 +178,16 @@ function bind(root = document) {
   });
 
   // Sheet backdrop click to dismiss
-  root.querySelectorAll('.sheet-layer').forEach(layer => {
+  const sheetLayers = [
+    ...(root.matches?.('.sheet-layer') ? [root] : []),
+    ...root.querySelectorAll('.sheet-layer'),
+  ];
+  sheetLayers.forEach(layer => {
     layer.addEventListener('click', e => {
       if (e.target === layer) {
         if (sheet !== 'onboarding' || state.budget) {
           sheet = null;
-          render();
+          renderSheet();
         }
       }
     });
@@ -255,6 +276,7 @@ function updateEditorPreview() {
 
 function action(value) {
   haptic(10);
+  const sheetAction = ['settings', 'wallet', 'new-period', 'history', 'analytics', 'recalc', 'theme', 'close'].includes(value);
   if (value === 'settings') sheet = 'settings';
   if (value === 'wallet') sheet = 'wallet';
   if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; }
@@ -263,6 +285,10 @@ function action(value) {
   if (value === 'recalc') sheet = 'distribution';
   if (value === 'theme') sheet = 'theme';
   if (value === 'close') sheet = null;
+  if (sheetAction) {
+    renderSheet();
+    return;
+  }
   if (value === 'cancel-edit') resetEditor();
   if (value === 'commit') commit();
   if (value === 'undo') undoDelete();
