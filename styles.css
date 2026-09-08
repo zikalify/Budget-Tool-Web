@@ -1273,6 +1273,67 @@ svg {
   background: var(--md-sys-color-primary);
 }
 
+/* History Search Bar */
+.history-search-wrapper {
+  margin-bottom: 16px;
+}
+
+.history-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 9999px;
+  padding: 8px 16px;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.history-search:focus-within {
+  background: var(--md-sys-color-surface-container-highest);
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.history-search svg {
+  width: 18px;
+  height: 18px;
+  color: var(--md-sys-color-outline);
+  flex-shrink: 0;
+}
+
+.history-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  color: var(--md-sys-color-on-surface);
+}
+
+.history-search input::placeholder {
+  color: var(--md-sys-color-outline);
+}
+
+.history-search-clear {
+  border: 0;
+  background: transparent;
+  color: var(--md-sys-color-outline);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.history-search-clear:hover {
+  background: var(--md-sys-state-hover);
+  color: var(--md-sys-color-on-surface);
+}
+
 /* Material Toast / Snackbar */
 .toast {
   position: fixed;
@@ -1285,17 +1346,40 @@ svg {
   background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface);
   border: 1px solid var(--md-sys-color-outline-variant);
-  padding: 14px 22px;
+  padding: 10px 16px 10px 20px;
   border-radius: 16px;
   font-size: 13px;
   font-weight: 500;
   box-shadow: var(--md-elevation-3);
+  display: flex;
+  align-items: center;
+  gap: 14px;
   transition: all 0.28s var(--md-sys-motion-easing-emphasized);
 }
 
 .toast.show {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
+  pointer-events: auto;
+}
+
+.toast-action {
+  border: 0;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  transition: filter 0.15s, transform 0.15s;
+}
+
+.toast-action:hover {
+  filter: brightness(1.08);
+}
+
+.toast-action:active {
+  transform: scale(0.94);
 }
 
 .muted {

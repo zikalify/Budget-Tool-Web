@@ -23,7 +23,17 @@ let rawValue = '';
 let editorComment = '';
 let editorDate = today();
 let editorTime = nowTime();
+let historySearch = '';
+let lastDeleted = null;
 let toastTimer;
+
+function haptic(ms = 10) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(ms);
+    }
+  } catch {}
+}
 
 function loadState() { try { return { ...defaultState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }; } catch { return defaultState(); } }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -35,7 +45,7 @@ function remainingBudget() { const budget = Math.max(0, Number(state.budget) || 
 function daysLeft() { return state.finishDate ? daysBetween(today(), state.finishDate) : 0; }
 function restToday() { return Number(state.dailyBudget || 0) - Number(state.spentFromDailyBudget || 0) - (Number(rawValue) || 0); }
 function normalize(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0; }
-function icon(name) { const icons = { settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>', wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>', back: '<path d="m15 18-6-6 6-6"/>', calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>', trash: '<path d="M5 7h14m-9 4v5m4-5v5M8 7l1-3h6l1 3m-9 0 1 14h8l1-14"/>', chart: '<path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-7"/>', download: '<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 20h16"/>', check: '<path d="M20 6 9 17l-5-5"/>' }; return `<svg viewBox="0 0 24 24">${icons[name] || ''}</svg>`; }
+function icon(name) { const icons = { settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>', wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>', back: '<path d="m15 18-6-6 6-6"/>', calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>', trash: '<path d="M5 7h14m-9 4v5m4-5v5M8 7l1-3h6l1 3m-9 0 1 14h8l1-14"/>', chart: '<path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-7"/>', download: '<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 20h16"/>', check: '<path d="M20 6 9 17l-5-5"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>' }; return `<svg viewBox="0 0 24 24">${icons[name] || ''}</svg>`; }
 
 function createRipple(event) {
   const button = event.currentTarget;
@@ -69,7 +79,56 @@ function tagging() { const tags = [...new Set(spends().map(item => item.comment)
 function dateEditor() { return `<div class="date-editor"><label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${editorDate}"></label><label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label></div><div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div></div>`; }
 function historyToggle() { return `<button class="history-handle" data-action="history"><span></span>${spends().length ? `${spends().length} spends` : 'history'}<b>⌃</b></button>`; }
 function keyboard() { return `<section class="keyboard"><div class="key-grid"><button class="key" data-key="7">7</button><button class="key" data-key="8">8</button><button class="key" data-key="9">9</button><button class="key secondary-key" data-key="backspace">⌫</button><button class="key" data-key="4">4</button><button class="key" data-key="5">5</button><button class="key" data-key="6">6</button><span></span><button class="key" data-key="1">1</button><button class="key" data-key="2">2</button><button class="key" data-key="3">3</button><button class="key apply-key" data-action="commit">✓</button><button class="key zero-key" data-key="0">0</button><button class="key" data-key=".">.</button></div></section>`; }
-function history(readOnly = false) { const grouped = {}; spends().sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`)).forEach(item => (grouped[item.date] ||= []).push(item)); const remaining = Math.max(0, remainingBudget()); const progress = state.budget ? Math.max(0, Math.min(100, remaining / Number(state.budget) * 100)) : 0; return `<section class="history-content"><div class="history-heading"><div><span class="section-label">ledger</span><h1>History</h1></div><button class="plain-button" data-action="analytics">${icon('chart')} analytics</button></div><div class="budget-summary"><div class="summary-line"><span>remaining budget</span><strong>${money(remaining)}</strong></div><div class="summary-progress"><i style="width:${progress}%"></i></div><small>${state.budget ? `${money(state.budget)} planned · ${fullDate(state.startDate)} – ${fullDate(state.finishDate)}` : 'No active period'}</small></div>${Object.entries(grouped).map(([date, items]) => `<section class="date-group"><div class="date-divider"><strong>${dateLabel(date)}</strong><span>${money(items.reduce((sum, item) => sum + Number(item.value), 0))}</span></div>${items.map(item => `<div class="spent-row"><div class="spent-mark">−</div><div class="spent-copy"><strong>${money(item.value)}</strong><span>${item.time || ''}${item.comment ? ` · ${escapeHtml(item.comment)}` : ''}</span></div>${readOnly ? '' : `<button class="row-action" data-edit="${item.id}" aria-label="Edit spend">${icon('edit')}</button><button class="row-action danger" data-delete="${item.id}" aria-label="Delete spend">${icon('trash')}</button>`}</div>`).join('')}</section>`).join('') || `<div class="history-empty">Your spends will appear here.</div>`}</section>`; }
+function history(readOnly = false) {
+  const allSpends = spends().sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
+  const query = historySearch.trim().toLowerCase();
+  const filtered = query
+    ? allSpends.filter(item => (item.comment || '').toLowerCase().includes(query) || String(item.value).includes(query) || dateLabel(item.date).toLowerCase().includes(query))
+    : allSpends;
+
+  const grouped = {};
+  filtered.forEach(item => (grouped[item.date] ||= []).push(item));
+  const remaining = Math.max(0, remainingBudget());
+  const progress = state.budget ? Math.max(0, Math.min(100, remaining / Number(state.budget) * 100)) : 0;
+
+  return `<section class="history-content">
+    <div class="history-heading">
+      <div><span class="section-label">ledger</span><h1>History</h1></div>
+      <button class="plain-button" data-action="analytics">${icon('chart')} analytics</button>
+    </div>
+    <div class="budget-summary">
+      <div class="summary-line"><span>remaining budget</span><strong>${money(remaining)}</strong></div>
+      <div class="summary-progress"><i style="width:${progress}%"></i></div>
+      <small>${state.budget ? `${money(state.budget)} planned · ${fullDate(state.startDate)} – ${fullDate(state.finishDate)}` : 'No active period'}</small>
+    </div>
+    ${allSpends.length ? `
+    <div class="history-search-wrapper">
+      <div class="history-search">
+        ${icon('search')}
+        <input type="search" id="history-search-input" placeholder="Search spends..." value="${escapeAttr(historySearch)}" autocomplete="off">
+        ${historySearch ? `<button class="history-search-clear" data-action="clear-search" aria-label="Clear search">×</button>` : ''}
+      </div>
+    </div>` : ''}
+    ${Object.entries(grouped).map(([date, items]) => `
+      <section class="date-group">
+        <div class="date-divider"><strong>${dateLabel(date)}</strong><span>${money(items.reduce((sum, item) => sum + Number(item.value), 0))}</span></div>
+        ${items.map(item => `
+          <div class="spent-row">
+            <div class="spent-mark">−</div>
+            <div class="spent-copy">
+              <strong>${money(item.value)}</strong>
+              <span>${item.time || ''}${item.comment ? ` · ${escapeHtml(item.comment)}` : ''}</span>
+            </div>
+            ${readOnly ? '' : `
+              <button class="row-action" data-edit="${item.id}" aria-label="Edit spend">${icon('edit')}</button>
+              <button class="row-action danger" data-delete="${item.id}" aria-label="Delete spend">${icon('trash')}</button>
+            `}
+          </div>
+        `).join('')}
+      </section>
+    `).join('') || `<div class="history-empty">${query ? 'No matching spends found.' : 'Your spends will appear here.'}</div>`}
+  </section>`;
+}
 function sheetView() { if (sheet === 'onboarding') return `<div class="sheet-layer"><section class="sheet onboarding"><span class="sheet-grip"></span><p class="section-label">welcome</p><h2>Hello.</h2><p class="sheet-copy">Budget Tool helps you spend money wisely by giving you a clear amount for each day.</p><ol><li><b>1</b><span><strong>Set a period budget</strong><small>Choose your total and finish date.</small></span></li><li><b>2</b><span><strong>Record spends</strong><small>Write down what leaves your wallet.</small></span></li><li><b>3</b><span><strong>See what remains</strong><small>Keep your daily number visible.</small></span></li></ol><button class="primary full" data-action="wallet">Set period</button></section></div>`;
   if (sheet === 'wallet') return freshWalletSheet();
   if (sheet === 'settings') return freshSettingsSheet();
@@ -89,8 +148,24 @@ function themeSheet() { const choices = [['system', 'Follow system theme', 'Auto
 
 function bind() {
   document.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('pointerdown', createRipple);
+    btn.addEventListener('pointerdown', e => {
+      createRipple(e);
+      haptic(10);
+    });
   });
+
+  // Sheet backdrop click to dismiss
+  document.querySelectorAll('.sheet-layer').forEach(layer => {
+    layer.addEventListener('click', e => {
+      if (e.target === layer) {
+        if (sheet !== 'onboarding' || state.budget) {
+          sheet = null;
+          render();
+        }
+      }
+    });
+  });
+
   document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
   document.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => key(button.dataset.key)));
   document.querySelectorAll('[data-tag]').forEach(button => button.addEventListener('click', () => { editorComment = button.dataset.tag; render(); }));
@@ -98,6 +173,29 @@ function bind() {
   document.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => remove(button.dataset.delete)));
   document.querySelectorAll('[data-recalc]').forEach(button => button.addEventListener('click', () => recalc(button.dataset.recalc)));
   document.querySelectorAll('[data-distribution]').forEach(button => button.addEventListener('click', () => { state.distribution = button.dataset.distribution; save(); sheet = null; show('Preference saved'); render(); }));
+
+  // History search input
+  const searchInput = document.getElementById('history-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', e => {
+      historySearch = e.target.value;
+      const historyContent = searchInput.closest('.history-content');
+      if (historyContent) {
+        const parent = historyContent.parentElement;
+        if (parent) {
+          const isPane = parent.classList.contains('history-pane');
+          parent.innerHTML = isPane ? `<div class="history-top"><div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>${history(false)}` : history();
+          bind();
+          const nextInput = document.getElementById('history-search-input');
+          if (nextInput) {
+            nextInput.focus();
+            nextInput.setSelectionRange(historySearch.length, historySearch.length);
+          }
+        }
+      }
+    });
+  }
+
   document.querySelectorAll('input').forEach(input => {
     input.addEventListener('input', () => {
       if (input.id === 'comment') editorComment = input.value;
@@ -115,8 +213,37 @@ function bind() {
   });
   document.getElementById('wallet-form')?.addEventListener('submit', freshSaveWallet);
 }
-function key(value) { if (value === 'backspace') rawValue = rawValue.slice(0, -1); else if (value === '.' && !rawValue.includes('.')) rawValue += '.'; else if (value !== '.') rawValue += value; if (rawValue.length > 12) rawValue = rawValue.slice(0, 12); render(); }
-function action(value) { if (value === 'settings') sheet = 'settings'; if (value === 'wallet') sheet = 'wallet'; if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; } if (value === 'history') sheet = 'history'; if (value === 'analytics') sheet = 'analytics'; if (value === 'recalc') sheet = 'distribution'; if (value === 'theme') sheet = 'theme'; if (value === 'close') sheet = null; if (value === 'cancel-edit') resetEditor(); if (value === 'commit') commit(); if (value === 'finish' && confirm('Finish this period now?')) { state = defaultState(); save(); sheet = 'onboarding'; } if (value === 'export') exportCsv(); if (value === 'comment-done') { document.getElementById('comment')?.blur(); } if (value.startsWith('set-theme:')) { state.theme = value.replace('set-theme:', ''); save(); sheet = null; show('Theme updated'); } render(); }
+
+function key(value) {
+  haptic(8);
+  if (value === 'backspace') rawValue = rawValue.slice(0, -1);
+  else if (value === '.' && !rawValue.includes('.')) rawValue += '.';
+  else if (value !== '.') rawValue += value;
+  if (rawValue.length > 12) rawValue = rawValue.slice(0, 12);
+  render();
+}
+
+function action(value) {
+  haptic(10);
+  if (value === 'settings') sheet = 'settings';
+  if (value === 'wallet') sheet = 'wallet';
+  if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; }
+  if (value === 'history') sheet = 'history';
+  if (value === 'analytics') sheet = 'analytics';
+  if (value === 'recalc') sheet = 'distribution';
+  if (value === 'theme') sheet = 'theme';
+  if (value === 'close') sheet = null;
+  if (value === 'cancel-edit') resetEditor();
+  if (value === 'commit') commit();
+  if (value === 'undo') undoDelete();
+  if (value === 'clear-search') { historySearch = ''; render(); }
+  if (value === 'finish' && confirm('Finish this period now?')) { state = defaultState(); save(); sheet = 'onboarding'; }
+  if (value === 'export') exportCsv();
+  if (value === 'comment-done') { document.getElementById('comment')?.blur(); }
+  if (value.startsWith('set-theme:')) { state.theme = value.replace('set-theme:', ''); save(); sheet = null; show('Theme updated'); }
+  render();
+}
+
 function beginEdit(id) { const item = spends().find(entry => entry.id === id); if (!item) return; editingId = id; rawValue = String(item.value); editorComment = item.comment || ''; editorDate = item.date; editorTime = item.time || nowTime(); sheet = null; render(); }
 function resetEditor() { editingId = null; rawValue = ''; editorComment = ''; editorDate = today(); editorTime = nowTime(); render(); }
 function commit() { const value = normalize(rawValue); if (!value) { if (editingId) remove(editingId); return; } if (editingId) { const old = spends().find(item => item.id === editingId); state.transactions = state.transactions.filter(item => item.id !== editingId); accountRemove(old); } const item = { id: uid(), type: 'SPENT', value, date: editingId ? editorDate : today(), time: editingId ? editorTime : nowTime(), comment: editorComment.trim() }; state.transactions.push(item); accountAdd(item); save(); show('Spend recorded'); resetEditor(); }
@@ -124,10 +251,47 @@ function accountAdd(item) { if (item.date === today()) state.spentFromDailyBudge
 function accountRemove(item) { if (!item) return; if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft()); }
 function saveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today()) return; const isNew = !state.budget; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; save(); sheet = null; show('Wallet saved'); render(); }
 function recalc(method) { const remaining = remainingBudget(); state.dailyBudget = normalize(method === 'LAST_DAY' ? remaining : remaining / Math.max(1, daysLeft())); state.spentFromDailyBudget = 0; state.distribution = method === 'REST' ? 'REST' : method === 'ADD_TODAY' ? 'ADD_TODAY' : 'ASK'; state.transactions.push({ id: uid(), type: 'SET_DAILY_BUDGET', value: state.dailyBudget, date: today(), time: nowTime(), comment: '' }); save(); sheet = null; show('Daily budget updated'); render(); }
-function remove(id) { const item = spends().find(entry => entry.id === id); accountRemove(item); state.transactions = state.transactions.filter(entry => entry.id !== id); save(); show('Spend deleted'); render(); }
+
+function remove(id) {
+  const item = spends().find(entry => entry.id === id);
+  if (!item) return;
+  lastDeleted = item;
+  accountRemove(item);
+  state.transactions = state.transactions.filter(entry => entry.id !== id);
+  save();
+  show('Spend deleted', true);
+  render();
+}
+
+function undoDelete() {
+  if (!lastDeleted) return;
+  state.transactions.push(lastDeleted);
+  accountAdd(lastDeleted);
+  save();
+  const restored = lastDeleted;
+  lastDeleted = null;
+  show('Spend restored');
+  render();
+}
+
 function exportCommitTime(item) { const timestamp = new Date(`${item.date}T${item.time || '00:00'}:00`); if (Number.isNaN(timestamp.getTime())) return fullDate(item.date); return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(timestamp); }
 function exportCsv() { const rows = [['amount', 'comment', 'commit_time'], ...spends().sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map(item => [item.value, item.comment || '', exportCommitTime(item)].map(value => `"${String(value).replaceAll('"', '""')}"`))]; const blob = new Blob([rows.map(row => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `budget-tool-${state.startDate}-${state.finishDate}.csv`; link.click(); URL.revokeObjectURL(link.href); show('CSV exported'); }
-function show(message) { clearTimeout(toastTimer); const toast = document.getElementById('toast'); if (toast) { toast.textContent = message; toast.classList.add('show'); toastTimer = setTimeout(() => toast.classList.remove('show'), 2200); } }
+
+function show(message, hasUndo = false) {
+  clearTimeout(toastTimer);
+  const toast = document.getElementById('toast');
+  if (toast) {
+    toast.innerHTML = `<span>${escapeHtml(message)}</span>${hasUndo ? `<button class="toast-action" data-action="undo">Undo</button>` : ''}`;
+    toast.classList.add('show');
+    const undoBtn = toast.querySelector('[data-action="undo"]');
+    if (undoBtn) undoBtn.addEventListener('click', () => action('undo'));
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+      if (hasUndo) lastDeleted = null;
+    }, hasUndo ? 4500 : 2400);
+  }
+}
+
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character])); }
 function escapeAttr(value) { return escapeHtml(value); }
 
@@ -138,4 +302,51 @@ function freshWalletSheet() { const fresh = !state.budget || startingNewPeriod; 
 function freshSaveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today() || finish < start) return; const isNew = !state.budget || startingNewPeriod; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; startingNewPeriod = false; save(); sheet = null; show('Wallet saved'); render(); }
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.theme === 'system') render(); });
+
+// Global physical keyboard support & Escape to dismiss
+window.addEventListener('keydown', e => {
+  const activeEl = document.activeElement;
+  const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+
+  if (e.key === 'Escape') {
+    if (sheet) {
+      if (sheet !== 'onboarding' || state.budget) {
+        sheet = null;
+        render();
+      }
+    } else if (editingId) {
+      resetEditor();
+    }
+    return;
+  }
+
+  if (isInput) return;
+
+  if (e.key >= '0' && e.key <= '9') {
+    e.preventDefault();
+    key(e.key);
+  } else if (e.key === '.' || e.key === ',') {
+    e.preventDefault();
+    key('.');
+  } else if (e.key === 'Backspace') {
+    e.preventDefault();
+    key('backspace');
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    commit();
+  }
+});
+
+// App Shortcut Hash Handling
+function handleHash() {
+  const hash = window.location.hash;
+  if (hash === '#history') {
+    sheet = 'history';
+  } else if (hash === '#analytics') {
+    sheet = 'analytics';
+  }
+}
+window.addEventListener('hashchange', () => { handleHash(); render(); });
+handleHash();
+
 render();
