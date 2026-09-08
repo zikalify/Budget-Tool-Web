@@ -57,6 +57,23 @@ function remainingBudget() {
 }
 function daysLeft() { return state.finishDate ? daysBetween(today(), state.finishDate) : 0; }
 function restToday() { return Number(state.dailyBudget || 0) - Number(state.spentFromDailyBudget || 0) - (Number(rawValue) || 0); }
+function newDailyBudget() {
+  // When today is overspent, spread what remains (including the currently
+  // typed, uncommitted spend) across the following days.
+  const pendingSpend = Number(rawValue) || 0;
+  return normalize(Math.max(0, remainingBudget() - pendingSpend) / Math.max(1, daysLeft() - 1));
+}
+function pillDisplay() {
+  const todayRemaining = restToday();
+  const isOverdraft = todayRemaining < 0;
+  const daily = isOverdraft ? newDailyBudget() : todayRemaining;
+  return {
+    isOverdraft,
+    status: state.budget ? (isOverdraft ? 'new daily' : 'left today') : 'set period',
+    value: state.budget ? money(daily) : money(0),
+    progress: Math.max(0, Math.min(100, state.dailyBudget ? (daily / state.dailyBudget) * 100 : 0)),
+  };
+}
 function normalize(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0; }
 function icon(name) { const icons = { settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>', wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>', back: '<path d="m15 18-6-6 6-6"/>', calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>', trash: '<path d="M5 7h14m-9 4v5m4-5v5M8 7l1-3h6l1 3m-9 0 1 14h8l1-14"/>', chart: '<path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-7"/>', download: '<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 20h16"/>', check: '<path d="M20 6 9 17l-5-5"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>' }; return `<svg viewBox="0 0 24 24">${icons[name] || ''}</svg>`; }
 
@@ -109,7 +126,7 @@ function renderSheet() {
   renderedSheet = sheet;
 }
 function desktopHistory() { return `<aside class="history-pane"><div class="history-top"><div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>${history(false)}</aside>`; }
-function editor() { const mode = editingId ? 'EDIT' : 'ADD'; const active = Boolean(rawValue || editorComment || editingId); return `<section class="editor-shell"><header class="editor-toolbar">${mode === 'EDIT' ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>` : `<span class="editor-spacer"></span>`}<button class="budget-pill ${restToday() < 0 ? 'over' : ''}" data-action="wallet"><span class="pill-status">${state.budget ? (restToday() < 0 ? 'over budget' : 'left today') : 'set period'}</span><strong>${state.budget ? money(restToday()) : money(0)}</strong><i style="width:${Math.max(0, Math.min(100, state.dailyBudget ? (restToday() / state.dailyBudget) * 100 : 0))}%"></i></button><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></header><section class="amount-area"><span class="amount-label">${mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend'}</span><strong class="amount-display">${rawValue || '0'}</strong><span class="currency-label">${state.currency === 'NONE' ? '' : state.currency}</span></section>${mode === 'EDIT' ? dateEditor() : tagging()}${historyToggle()}</section>`; }
+function editor() { const mode = editingId ? 'EDIT' : 'ADD'; const active = Boolean(rawValue || editorComment || editingId); const pill = pillDisplay(); return `<section class="editor-shell"><header class="editor-toolbar">${mode === 'EDIT' ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>` : `<span class="editor-spacer"></span>`}<button class="budget-pill ${pill.isOverdraft ? 'over' : ''}" data-action="wallet"><span class="pill-status">${pill.status}</span><strong>${pill.value}</strong><i style="width:${pill.progress}%"></i></button><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></header><section class="amount-area"><span class="amount-label">${mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend'}</span><strong class="amount-display">${rawValue || '0'}</strong><span class="currency-label">${state.currency === 'NONE' ? '' : state.currency}</span></section>${mode === 'EDIT' ? dateEditor() : tagging()}${historyToggle()}</section>`; }
 function tagging() { const tags = [...new Set(spends().map(item => item.comment).filter(Boolean))].reverse(); return `<div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note" autocomplete="off"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div>${tags.length ? `<div class="tag-list">${tags.map(tag => `<button data-tag="${escapeAttr(tag)}">${escapeHtml(tag)}</button>`).join('')}</div>` : ''}</div>`; }
 function dateEditor() { return `<div class="date-editor"><label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${editorDate > today() ? today() : editorDate}"></label><label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label></div><div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div></div>`; }
 function historyToggle() { return `<button class="history-handle" data-action="history" aria-label="Open history"><span></span></button>`; }
@@ -271,18 +288,15 @@ function key(value) {
 function updateEditorPreview() {
   const active = Boolean(rawValue || editorComment || editingId);
   const amount = rawValue || '0';
-  const remaining = restToday();
-  const status = state.budget ? (remaining < 0 ? 'over budget' : 'left today') : 'set period';
-  const value = state.budget ? money(remaining) : money(0);
-  const progress = Math.max(0, Math.min(100, state.dailyBudget ? (remaining / state.dailyBudget) * 100 : 0));
+  const pillDisplayValue = pillDisplay();
 
   document.querySelectorAll('.amount-display').forEach(element => { element.textContent = amount; });
   document.querySelectorAll('.amount-label').forEach(element => { element.textContent = editingId ? 'editing spend' : active ? 'current spend' : 'enter a spend'; });
   document.querySelectorAll('.budget-pill').forEach(pill => {
-    pill.classList.toggle('over', remaining < 0);
-    pill.querySelector('.pill-status').textContent = status;
-    pill.querySelector('strong').textContent = value;
-    pill.querySelector('i').style.width = `${progress}%`;
+    pill.classList.toggle('over', pillDisplayValue.isOverdraft);
+    pill.querySelector('.pill-status').textContent = pillDisplayValue.status;
+    pill.querySelector('strong').textContent = pillDisplayValue.value;
+    pill.querySelector('i').style.width = `${pillDisplayValue.progress}%`;
   });
 }
 
