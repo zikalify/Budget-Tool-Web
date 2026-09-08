@@ -549,22 +549,16 @@ svg {
 /* History Handle (Mobile Drawer Peek) */
 .history-handle {
   border: 0;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface-container);
-  height: 48px;
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 13px;
-  font-weight: 500;
+  background: transparent;
+  height: 28px;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   transition: background-color 0.2s;
 }
 
 .history-handle:active {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-state-pressed);
 }
 
 .history-handle span {
@@ -574,11 +568,6 @@ svg {
   border-radius: 4px;
   background: var(--md-sys-color-outline);
   opacity: 0.6;
-}
-
-.history-handle b {
-  font-size: 14px;
-  margin-left: 6px;
 }
 
 /* Keyboard - Material You Tactile Keypad */
@@ -1464,7 +1453,18 @@ svg {
   }
 
   .keyboard {
+    border-top: 0;
     padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .date-editor {
+    flex-wrap: wrap;
+    padding-inline: 16px;
+  }
+
+  .date-editor label {
+    flex: 1 1 150px;
+    min-width: 0;
   }
 
   .sheet {
