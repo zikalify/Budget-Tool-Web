@@ -26,6 +26,7 @@ let editorTime = nowTime();
 let historySearch = '';
 let lastDeleted = null;
 let toastTimer;
+let renderedSheet = null;
 
 function haptic(ms = 10) {
   try {
@@ -64,19 +65,24 @@ function createRipple(event) {
 }
 
 function render() {
+  // Rendering replaces the app markup. Keep an already-open sheet still during
+  // state updates (for example, deleting a spend from History) instead of
+  // replaying its entrance animation.
+  const preserveSheetMotion = Boolean(sheet && sheet === renderedSheet);
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
   document.body.dataset.theme = effectiveTheme;
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
     metaTheme.setAttribute('content', effectiveTheme === 'dark' ? '#111410' : '#f7fbf2');
   }
-  document.getElementById('app').innerHTML = `<div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}<div id="toast" class="toast"></div>`;
+  document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}<div id="toast" class="toast"></div></div>`;
+  renderedSheet = sheet;
   bind();
 }
 function desktopHistory() { return `<aside class="history-pane"><div class="history-top"><div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>${history(false)}</aside>`; }
 function editor() { const mode = editingId ? 'EDIT' : 'ADD'; const active = Boolean(rawValue || editorComment || editingId); return `<section class="editor-shell"><header class="editor-toolbar">${mode === 'EDIT' ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>` : `<span class="editor-spacer"></span>`}<button class="budget-pill ${restToday() < 0 ? 'over' : ''}" data-action="wallet"><span class="pill-status">${state.budget ? (restToday() < 0 ? 'over budget' : 'left today') : 'set period'}</span><strong>${state.budget ? money(restToday()) : money(0)}</strong><i style="width:${Math.max(0, Math.min(100, state.dailyBudget ? (restToday() / state.dailyBudget) * 100 : 0))}%"></i></button><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></header><section class="amount-area"><span class="amount-label">${mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend'}</span><strong class="amount-display">${rawValue || '0'}</strong><span class="currency-label">${state.currency === 'NONE' ? '' : state.currency}</span></section>${mode === 'EDIT' ? dateEditor() : tagging()}${historyToggle()}</section>`; }
 function tagging() { const tags = [...new Set(spends().map(item => item.comment).filter(Boolean))].reverse(); return `<div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note" autocomplete="off"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div>${tags.length ? `<div class="tag-list">${tags.map(tag => `<button data-tag="${escapeAttr(tag)}">${escapeHtml(tag)}</button>`).join('')}</div>` : ''}</div>`; }
-function dateEditor() { return `<div class="date-editor"><label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${editorDate}"></label><label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label></div><div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div></div>`; }
+function dateEditor() { return `<div class="date-editor"><label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${editorDate > today() ? today() : editorDate}"></label><label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label></div><div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div></div>`; }
 function historyToggle() { return `<button class="history-handle" data-action="history"><span></span>${spends().length ? `${spends().length} spends` : 'history'}<b>⌃</b></button>`; }
 function keyboard() { return `<section class="keyboard"><div class="key-grid"><button class="key" data-key="7">7</button><button class="key" data-key="8">8</button><button class="key" data-key="9">9</button><button class="key secondary-key" data-key="backspace">⌫</button><button class="key" data-key="4">4</button><button class="key" data-key="5">5</button><button class="key" data-key="6">6</button><span></span><button class="key" data-key="1">1</button><button class="key" data-key="2">2</button><button class="key" data-key="3">3</button><button class="key apply-key" data-action="commit">✓</button><button class="key zero-key" data-key="0">0</button><button class="key" data-key=".">.</button></div></section>`; }
 function history(readOnly = false) {
@@ -199,7 +205,10 @@ function bind() {
   document.querySelectorAll('input').forEach(input => {
     input.addEventListener('input', () => {
       if (input.id === 'comment') editorComment = input.value;
-      if (input.id === 'edit-date') editorDate = input.value;
+      if (input.id === 'edit-date') {
+        editorDate = input.value > today() ? today() : input.value;
+        input.value = editorDate;
+      }
       if (input.id === 'edit-time') editorTime = input.value;
     });
     if (input.id === 'comment') {
@@ -220,7 +229,28 @@ function key(value) {
   else if (value === '.' && !rawValue.includes('.')) rawValue += '.';
   else if (value !== '.') rawValue += value;
   if (rawValue.length > 12) rawValue = rawValue.slice(0, 12);
-  render();
+  updateEditorPreview();
+}
+
+// Number entry is the hottest interaction in the app. Updating only the values
+// that change avoids destroying and recreating the toolbar (and its text) on
+// every keypress.
+function updateEditorPreview() {
+  const active = Boolean(rawValue || editorComment || editingId);
+  const amount = rawValue || '0';
+  const remaining = restToday();
+  const status = state.budget ? (remaining < 0 ? 'over budget' : 'left today') : 'set period';
+  const value = state.budget ? money(remaining) : money(0);
+  const progress = Math.max(0, Math.min(100, state.dailyBudget ? (remaining / state.dailyBudget) * 100 : 0));
+
+  document.querySelectorAll('.amount-display').forEach(element => { element.textContent = amount; });
+  document.querySelectorAll('.amount-label').forEach(element => { element.textContent = editingId ? 'editing spend' : active ? 'current spend' : 'enter a spend'; });
+  document.querySelectorAll('.budget-pill').forEach(pill => {
+    pill.classList.toggle('over', remaining < 0);
+    pill.querySelector('.pill-status').textContent = status;
+    pill.querySelector('strong').textContent = value;
+    pill.querySelector('i').style.width = `${progress}%`;
+  });
 }
 
 function action(value) {
@@ -246,7 +276,7 @@ function action(value) {
 
 function beginEdit(id) { const item = spends().find(entry => entry.id === id); if (!item) return; editingId = id; rawValue = String(item.value); editorComment = item.comment || ''; editorDate = item.date; editorTime = item.time || nowTime(); sheet = null; render(); }
 function resetEditor() { editingId = null; rawValue = ''; editorComment = ''; editorDate = today(); editorTime = nowTime(); render(); }
-function commit() { const value = normalize(rawValue); if (!value) { if (editingId) remove(editingId); return; } if (editingId) { const old = spends().find(item => item.id === editingId); state.transactions = state.transactions.filter(item => item.id !== editingId); accountRemove(old); } const item = { id: uid(), type: 'SPENT', value, date: editingId ? editorDate : today(), time: editingId ? editorTime : nowTime(), comment: editorComment.trim() }; state.transactions.push(item); accountAdd(item); save(); show('Spend recorded'); resetEditor(); }
+function commit() { const value = normalize(rawValue); if (!value) { if (editingId) remove(editingId); return; } if (editingId) { const old = spends().find(item => item.id === editingId); state.transactions = state.transactions.filter(item => item.id !== editingId); accountRemove(old); } const item = { id: uid(), type: 'SPENT', value, date: editingId ? (editorDate > today() ? today() : editorDate) : today(), time: editingId ? editorTime : nowTime(), comment: editorComment.trim() }; state.transactions.push(item); accountAdd(item); save(); show('Spend recorded'); resetEditor(); }
 function accountAdd(item) { if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) - item.value / daysLeft()); }
 function accountRemove(item) { if (!item) return; if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft()); }
 function saveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today()) return; const isNew = !state.budget; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; save(); sheet = null; show('Wallet saved'); render(); }
