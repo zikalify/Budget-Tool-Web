@@ -4,8 +4,8 @@
   "description": "A private offline daily budget planner.",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f6f4ed",
-  "theme_color": "#123c35",
+  "background_color": "#f7fbf2",
+  "theme_color": "#2d6a4f",
   "icons": [
     { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
