@@ -220,29 +220,10 @@ function key(value) {
   else if (value === '.' && !rawValue.includes('.')) rawValue += '.';
   else if (value !== '.') rawValue += value;
   if (rawValue.length > 12) rawValue = rawValue.slice(0, 12);
-  scheduleRender();
+  render();
 }
 
 function action(value) {
-  haptic(10);
-  if (value === 'settings') sheet = 'settings';
-  if (value === 'wallet') sheet = 'wallet';
-  if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; }
-  if (value === 'history') sheet = 'history';
-  if (value === 'analytics') sheet = 'analytics';
-  if (value === 'recalc') sheet = 'distribution';
-  if (value === 'theme') sheet = 'theme';
-  if (value === 'close') sheet = null;
-  if (value === 'cancel-edit') resetEditor();
-  if (value === 'commit') commit();
-  if (value === 'undo') undoDelete();
-  if (value === 'clear-search') { historySearch = ''; scheduleRender(); }
-  if (value === 'finish' && confirm('Finish this period now?')) { state = defaultState(); save(); sheet = 'onboarding'; }
-  if (value === 'export') exportCsv();
-  if (value === 'comment-done') { document.getElementById('comment')?.blur(); }
-  if (value.startsWith('set-theme:')) { state.theme = value.replace('set-theme:', ''); save(); sheet = null; show('Theme updated'); }
-  scheduleRender();
-}
   haptic(10);
   if (value === 'settings') sheet = 'settings';
   if (value === 'wallet') sheet = 'wallet';
@@ -266,27 +247,8 @@ function action(value) {
 function beginEdit(id) { const item = spends().find(entry => entry.id === id); if (!item) return; editingId = id; rawValue = String(item.value); editorComment = item.comment || ''; editorDate = item.date; editorTime = item.time || nowTime(); sheet = null; render(); }
 function resetEditor() { editingId = null; rawValue = ''; editorComment = ''; editorDate = today(); editorTime = nowTime(); render(); }
 function commit() { const value = normalize(rawValue); if (!value) { if (editingId) remove(editingId); return; } if (editingId) { const old = spends().find(item => item.id === editingId); state.transactions = state.transactions.filter(item => item.id !== editingId); accountRemove(old); } const item = { id: uid(), type: 'SPENT', value, date: editingId ? editorDate : today(), time: editingId ? editorTime : nowTime(), comment: editorComment.trim() }; state.transactions.push(item); accountAdd(item); save(); show('Spend recorded'); resetEditor(); }
-function recomputeDailyBudget() {
-  if (!state.budget) return;
-  const remaining = remainingBudget();
-  const dl = daysLeft();
-  state.dailyBudget = dl ? normalize(remaining / dl) : 0;
-}
-
-function accountAdd(item) {
-  if (item.date === today()) {
-    state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value);
-  }
-  recomputeDailyBudget();
-}
-
-function accountRemove(item) {
-  if (!item) return;
-  if (item.date === today()) {
-    state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value);
-  }
-  recomputeDailyBudget();
-}
+function accountAdd(item) { if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) - item.value / daysLeft()); }
+function accountRemove(item) { if (!item) return; if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft()); }
 function saveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today()) return; const isNew = !state.budget; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; save(); sheet = null; show('Wallet saved'); render(); }
 function recalc(method) { const remaining = remainingBudget(); state.dailyBudget = normalize(method === 'LAST_DAY' ? remaining : remaining / Math.max(1, daysLeft())); state.spentFromDailyBudget = 0; state.distribution = method === 'REST' ? 'REST' : method === 'ADD_TODAY' ? 'ADD_TODAY' : 'ASK'; state.transactions.push({ id: uid(), type: 'SET_DAILY_BUDGET', value: state.dailyBudget, date: today(), time: nowTime(), comment: '' }); save(); sheet = null; show('Daily budget updated'); render(); }
 
