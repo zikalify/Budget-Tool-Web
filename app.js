@@ -37,12 +37,24 @@ function haptic(ms = 10) {
 }
 
 function loadState() { try { return { ...defaultState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }; } catch { return defaultState(); } }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function save() {
+  // Persist a repairable derived value, never a stale one. This covers every
+  // mutation path that writes the ledger, including edits, deletes, and undo.
+  state.spentFromDailyBudget = normalize(todaySpent());
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
 function spends() { return state.transactions.filter(item => item.type === 'SPENT'); }
 function income() { return state.transactions.filter(item => item.type === 'INCOME').reduce((total, item) => total + Number(item.value), 0); }
 function totalSpent() { return spends().reduce((total, item) => total + Number(item.value), 0); }
 function todaySpent() { return spends().filter(item => item.date === today()).reduce((total, item) => total + Number(item.value), 0); }
-function remainingBudget() { const budget = Math.max(0, Number(state.budget) || 0); const calculated = budget - spends().filter(item => item.date !== today()).reduce((total, item) => total + Number(item.value), 0) - Number(state.spentFromDailyBudget || 0); return Math.max(0, Math.min(budget, calculated)); }
+// The ledger is the source of truth. Never derive the total remaining budget
+// from the persisted daily counter: that counter can be stale after an edit,
+// deletion, restore, or a new calendar day.
+function remainingBudget() {
+  const budget = Math.max(0, Number(state.budget) || 0);
+  const calculated = budget - totalSpent();
+  return Math.max(0, Math.min(budget, calculated));
+}
 function daysLeft() { return state.finishDate ? daysBetween(today(), state.finishDate) : 0; }
 function restToday() { return Number(state.dailyBudget || 0) - Number(state.spentFromDailyBudget || 0) - (Number(rawValue) || 0); }
 function normalize(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0; }
@@ -305,6 +317,16 @@ function resetEditor() { editingId = null; rawValue = ''; editorComment = ''; ed
 function commit() { const value = normalize(rawValue); if (!value) { if (editingId) remove(editingId); return; } if (editingId) { const old = spends().find(item => item.id === editingId); state.transactions = state.transactions.filter(item => item.id !== editingId); accountRemove(old); } const item = { id: uid(), type: 'SPENT', value, date: editingId ? (editorDate > today() ? today() : editorDate) : today(), time: editingId ? editorTime : nowTime(), comment: editorComment.trim() }; state.transactions.push(item); accountAdd(item); save(); show('Spend recorded'); resetEditor(); }
 function accountAdd(item) { if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) - item.value / daysLeft()); }
 function accountRemove(item) { if (!item) return; if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft()); }
+
+function reconcileDerivedState() {
+  // Keep the daily display correct after reopening the app or crossing into a
+  // new day. The total remaining budget itself is always derived from spends.
+  const actualTodaySpent = normalize(todaySpent());
+  if (normalize(state.spentFromDailyBudget) !== actualTodaySpent) {
+    state.spentFromDailyBudget = actualTodaySpent;
+    save();
+  }
+}
 function saveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today()) return; const isNew = !state.budget; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; save(); sheet = null; show('Wallet saved'); render(); }
 function recalc(method) { const remaining = remainingBudget(); state.dailyBudget = normalize(method === 'LAST_DAY' ? remaining : remaining / Math.max(1, daysLeft())); state.spentFromDailyBudget = 0; state.distribution = method === 'REST' ? 'REST' : method === 'ADD_TODAY' ? 'ADD_TODAY' : 'ASK'; state.transactions.push({ id: uid(), type: 'SET_DAILY_BUDGET', value: state.dailyBudget, date: today(), time: nowTime(), comment: '' }); save(); sheet = null; show('Daily budget updated'); render(); }
 
@@ -416,5 +438,7 @@ function handleHash() {
 }
 window.addEventListener('hashchange', () => { handleHash(); render(); });
 handleHash();
+
+reconcileDerivedState();
 
 render();
