@@ -37,9 +37,29 @@ function restToday() { return Number(state.dailyBudget || 0) - Number(state.spen
 function normalize(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0; }
 function icon(name) { const icons = { settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>', wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>', back: '<path d="m15 18-6-6 6-6"/>', calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>', trash: '<path d="M5 7h14m-9 4v5m4-5v5M8 7l1-3h6l1 3m-9 0 1 14h8l1-14"/>', chart: '<path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-7"/>', download: '<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 20h16"/>', check: '<path d="M20 6 9 17l-5-5"/>' }; return `<svg viewBox="0 0 24 24">${icons[name] || ''}</svg>`; }
 
+function createRipple(event) {
+  const button = event.currentTarget;
+  const circle = document.createElement('span');
+  const diameter = Math.max(button.clientWidth, button.clientHeight);
+  const radius = diameter / 2;
+  const rect = button.getBoundingClientRect();
+  circle.style.width = circle.style.height = `${diameter}px`;
+  circle.style.left = `${(event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : rect.left + radius)) - rect.left - radius}px`;
+  circle.style.top = `${(event.clientY || (event.touches && event.touches[0] ? event.touches[0].clientY : rect.top + radius)) - rect.top - radius}px`;
+  circle.classList.add('ripple');
+  const existingRipple = button.querySelector('.ripple');
+  if (existingRipple) existingRipple.remove();
+  button.appendChild(circle);
+  setTimeout(() => circle.remove(), 600);
+}
+
 function render() {
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
   document.body.dataset.theme = effectiveTheme;
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', effectiveTheme === 'dark' ? '#111410' : '#f7fbf2');
+  }
   document.getElementById('app').innerHTML = `<div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}<div id="toast" class="toast"></div>`;
   bind();
 }
@@ -67,7 +87,34 @@ function analyticsSheet() { const list = spends(); const amounts = list.map(item
 function recalcSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close">${icon('back')}</button><h2>New daily budget</h2><span></span></div><p class="sheet-copy">You have unused money from the previous day. What should happen to it?</p><button class="choice-row" data-recalc="REST"><strong>Split to rest days</strong><small>Spread it across the remaining days.</small></button><button class="choice-row" data-recalc="ADD_TODAY"><strong>Add to today</strong><small>Give today the extra room.</small></button><button class="choice-row" data-recalc="LAST_DAY"><strong>Start the last day</strong><small>Use all remaining money today.</small></button></section></div>`; }
 function themeSheet() { const choices = [['system', 'Follow system theme', 'Automatically match your device theme.'], ['light', 'Light theme', 'Always use light mode.'], ['dark', 'Dark theme', 'Always use dark mode.']]; return `<div class="sheet-layer"><section class="sheet distribution-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button><h2>Theme</h2><span></span></div><p class="sheet-copy">Choose your preferred appearance.</p>${choices.map(([value, title, description]) => `<button class="distribution-choice ${state.theme === value ? 'selected' : ''}" data-action="set-theme:${value}"><span class="choice-radio"></span><span><strong>${title}</strong><small>${description}</small></span></button>`).join('')}</section></div>`; }
 
-function bind() { document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action))); document.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => key(button.dataset.key))); document.querySelectorAll('[data-tag]').forEach(button => button.addEventListener('click', () => { editorComment = button.dataset.tag; render(); })); document.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => beginEdit(button.dataset.edit))); document.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => remove(button.dataset.delete))); document.querySelectorAll('[data-recalc]').forEach(button => button.addEventListener('click', () => recalc(button.dataset.recalc))); document.querySelectorAll('[data-distribution]').forEach(button => button.addEventListener('click', () => { state.distribution = button.dataset.distribution; save(); sheet = null; show('Preference saved'); render(); })); document.querySelectorAll('input').forEach(input => { input.addEventListener('input', () => { if (input.id === 'comment') editorComment = input.value; if (input.id === 'edit-date') editorDate = input.value; if (input.id === 'edit-time') editorTime = input.value; }); if (input.id === 'comment') { input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } }); } }); document.getElementById('wallet-form')?.addEventListener('submit', freshSaveWallet); }
+function bind() {
+  document.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('pointerdown', createRipple);
+  });
+  document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
+  document.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => key(button.dataset.key)));
+  document.querySelectorAll('[data-tag]').forEach(button => button.addEventListener('click', () => { editorComment = button.dataset.tag; render(); }));
+  document.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => beginEdit(button.dataset.edit)));
+  document.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => remove(button.dataset.delete)));
+  document.querySelectorAll('[data-recalc]').forEach(button => button.addEventListener('click', () => recalc(button.dataset.recalc)));
+  document.querySelectorAll('[data-distribution]').forEach(button => button.addEventListener('click', () => { state.distribution = button.dataset.distribution; save(); sheet = null; show('Preference saved'); render(); }));
+  document.querySelectorAll('input').forEach(input => {
+    input.addEventListener('input', () => {
+      if (input.id === 'comment') editorComment = input.value;
+      if (input.id === 'edit-date') editorDate = input.value;
+      if (input.id === 'edit-time') editorTime = input.value;
+    });
+    if (input.id === 'comment') {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          input.blur();
+        }
+      });
+    }
+  });
+  document.getElementById('wallet-form')?.addEventListener('submit', freshSaveWallet);
+}
 function key(value) { if (value === 'backspace') rawValue = rawValue.slice(0, -1); else if (value === '.' && !rawValue.includes('.')) rawValue += '.'; else if (value !== '.') rawValue += value; if (rawValue.length > 12) rawValue = rawValue.slice(0, 12); render(); }
 function action(value) { if (value === 'settings') sheet = 'settings'; if (value === 'wallet') sheet = 'wallet'; if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; } if (value === 'history') sheet = 'history'; if (value === 'analytics') sheet = 'analytics'; if (value === 'recalc') sheet = 'distribution'; if (value === 'theme') sheet = 'theme'; if (value === 'close') sheet = null; if (value === 'cancel-edit') resetEditor(); if (value === 'commit') commit(); if (value === 'finish' && confirm('Finish this period now?')) { state = defaultState(); save(); sheet = 'onboarding'; } if (value === 'export') exportCsv(); if (value === 'comment-done') { document.getElementById('comment')?.blur(); } if (value.startsWith('set-theme:')) { state.theme = value.replace('set-theme:', ''); save(); sheet = null; show('Theme updated'); } render(); }
 function beginEdit(id) { const item = spends().find(entry => entry.id === id); if (!item) return; editingId = id; rawValue = String(item.value); editorComment = item.comment || ''; editorDate = item.date; editorTime = item.time || nowTime(); sheet = null; render(); }
