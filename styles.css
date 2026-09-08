@@ -329,8 +329,8 @@ svg {
   border-radius: inherit;
 }
 
-.budget-pill span,
-.budget-pill strong {
+.budget-pill > .pill-status,
+.budget-pill > strong {
   position: relative;
   z-index: 1;
 }
