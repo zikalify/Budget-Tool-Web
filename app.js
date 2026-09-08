@@ -152,8 +152,8 @@ function analyticsSheet() { const list = spends(); const amounts = list.map(item
 function recalcSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close">${icon('back')}</button><h2>New daily budget</h2><span></span></div><p class="sheet-copy">You have unused money from the previous day. What should happen to it?</p><button class="choice-row" data-recalc="REST"><strong>Split to rest days</strong><small>Spread it across the remaining days.</small></button><button class="choice-row" data-recalc="ADD_TODAY"><strong>Add to today</strong><small>Give today the extra room.</small></button><button class="choice-row" data-recalc="LAST_DAY"><strong>Start the last day</strong><small>Use all remaining money today.</small></button></section></div>`; }
 function themeSheet() { const choices = [['system', 'Follow system theme', 'Automatically match your device theme.'], ['light', 'Light theme', 'Always use light mode.'], ['dark', 'Dark theme', 'Always use dark mode.']]; return `<div class="sheet-layer"><section class="sheet distribution-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button><h2>Theme</h2><span></span></div><p class="sheet-copy">Choose your preferred appearance.</p>${choices.map(([value, title, description]) => `<button class="distribution-choice ${state.theme === value ? 'selected' : ''}" data-action="set-theme:${value}"><span class="choice-radio"></span><span><strong>${title}</strong><small>${description}</small></span></button>`).join('')}</section></div>`; }
 
-function bind() {
-  document.querySelectorAll('button').forEach(btn => {
+function bind(root = document) {
+  root.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('pointerdown', e => {
       createRipple(e);
       haptic(10);
@@ -161,7 +161,7 @@ function bind() {
   });
 
   // Sheet backdrop click to dismiss
-  document.querySelectorAll('.sheet-layer').forEach(layer => {
+  root.querySelectorAll('.sheet-layer').forEach(layer => {
     layer.addEventListener('click', e => {
       if (e.target === layer) {
         if (sheet !== 'onboarding' || state.budget) {
@@ -172,16 +172,16 @@ function bind() {
     });
   });
 
-  document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
-  document.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => key(button.dataset.key)));
-  document.querySelectorAll('[data-tag]').forEach(button => button.addEventListener('click', () => { editorComment = button.dataset.tag; render(); }));
-  document.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => beginEdit(button.dataset.edit)));
-  document.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => remove(button.dataset.delete)));
-  document.querySelectorAll('[data-recalc]').forEach(button => button.addEventListener('click', () => recalc(button.dataset.recalc)));
-  document.querySelectorAll('[data-distribution]').forEach(button => button.addEventListener('click', () => { state.distribution = button.dataset.distribution; save(); sheet = null; show('Preference saved'); render(); }));
+  root.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
+  root.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => key(button.dataset.key)));
+  root.querySelectorAll('[data-tag]').forEach(button => button.addEventListener('click', () => { editorComment = button.dataset.tag; render(); }));
+  root.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => beginEdit(button.dataset.edit)));
+  root.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => remove(button.dataset.delete)));
+  root.querySelectorAll('[data-recalc]').forEach(button => button.addEventListener('click', () => recalc(button.dataset.recalc)));
+  root.querySelectorAll('[data-distribution]').forEach(button => button.addEventListener('click', () => { state.distribution = button.dataset.distribution; save(); sheet = null; show('Preference saved'); render(); }));
 
   // History search input
-  const searchInput = document.getElementById('history-search-input');
+  const searchInput = root.querySelector('#history-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', e => {
       historySearch = e.target.value;
@@ -191,7 +191,7 @@ function bind() {
         if (parent) {
           const isPane = parent.classList.contains('history-pane');
           parent.innerHTML = isPane ? `<div class="history-top"><div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>${history(false)}` : history();
-          bind();
+          bind(parent);
           const nextInput = document.getElementById('history-search-input');
           if (nextInput) {
             nextInput.focus();
@@ -202,7 +202,7 @@ function bind() {
     });
   }
 
-  document.querySelectorAll('input').forEach(input => {
+  root.querySelectorAll('input').forEach(input => {
     input.addEventListener('input', () => {
       if (input.id === 'comment') editorComment = input.value;
       if (input.id === 'edit-date') {
@@ -220,7 +220,7 @@ function bind() {
       });
     }
   });
-  document.getElementById('wallet-form')?.addEventListener('submit', freshSaveWallet);
+  root.querySelector('#wallet-form')?.addEventListener('submit', freshSaveWallet);
 }
 
 function key(value) {
@@ -282,6 +282,17 @@ function accountRemove(item) { if (!item) return; if (item.date === today()) sta
 function saveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today()) return; const isNew = !state.budget; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; save(); sheet = null; show('Wallet saved'); render(); }
 function recalc(method) { const remaining = remainingBudget(); state.dailyBudget = normalize(method === 'LAST_DAY' ? remaining : remaining / Math.max(1, daysLeft())); state.spentFromDailyBudget = 0; state.distribution = method === 'REST' ? 'REST' : method === 'ADD_TODAY' ? 'ADD_TODAY' : 'ASK'; state.transactions.push({ id: uid(), type: 'SET_DAILY_BUDGET', value: state.dailyBudget, date: today(), time: nowTime(), comment: '' }); save(); sheet = null; show('Daily budget updated'); render(); }
 
+function refreshHistoryViews() {
+  document.querySelectorAll('.history-content').forEach(content => {
+    const replacement = document.createRange().createContextualFragment(history(false)).firstElementChild;
+    content.replaceWith(replacement);
+    bind(replacement);
+  });
+  document.querySelectorAll('.history-handle').forEach(handle => {
+    handle.innerHTML = `<span></span>${spends().length ? `${spends().length} spends` : 'history'}<b>⌃</b>`;
+  });
+}
+
 function remove(id) {
   const item = spends().find(entry => entry.id === id);
   if (!item) return;
@@ -290,7 +301,8 @@ function remove(id) {
   state.transactions = state.transactions.filter(entry => entry.id !== id);
   save();
   show('Spend deleted', true);
-  render();
+  refreshHistoryViews();
+  updateEditorPreview();
 }
 
 function undoDelete() {

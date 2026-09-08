@@ -307,7 +307,7 @@ svg {
   color: var(--md-sys-color-on-secondary-container);
   box-shadow: var(--md-elevation-1);
   text-align: left;
-  transition: transform 0.2s var(--md-sys-motion-easing-standard), box-shadow 0.2s var(--md-sys-motion-easing-standard);
+  transition: box-shadow 0.2s var(--md-sys-motion-easing-standard);
 }
 
 .budget-pill:hover {
@@ -315,7 +315,9 @@ svg {
 }
 
 .budget-pill:active {
-  transform: scale(0.98);
+  /* Opening Wallet replaces the surrounding view. Keep the value stationary
+     instead of beginning a press-scale animation that gets interrupted. */
+  box-shadow: var(--md-elevation-1);
 }
 
 .budget-pill i {
