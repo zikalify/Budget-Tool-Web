@@ -1019,8 +1019,40 @@ svg {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
+}
+
+#wallet-form .field-label {
+  min-width: 0;
+}
+
+#wallet-form .field-label input,
+#wallet-form .field-label select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Keep the currency dropdown within its grid cell so it matches the width
+   of the Starts / Finishes selector boxes instead of stretching full width. */
+#wallet-form select.currency-select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2373796e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px;
+  padding-right: 44px;
+}
+
+#wallet-form .currency-name-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .primary {
@@ -1473,11 +1505,12 @@ svg {
 
   .wallet-sheet .form-grid,
   #wallet-form .form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .wallet-sheet input[type="date"],
-  #wallet-form input[type="date"] {
+  #wallet-form input[type="date"],
+  #wallet-form select.currency-select {
     width: 100%;
     min-width: 0;
   }

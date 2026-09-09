@@ -15,7 +15,7 @@ It is a simple static web app designed to run on GitHub Pages. No account or bac
 - Shows the remaining amount for today in the editor pill.
 - Displays spend history grouped by day, with daily totals.
 - Allows existing spends to be edited or deleted.
-- Handles unused daily budget with three choices: always ask, split it across remaining days, or add it to today.
+- Spreads unused or overspent daily budget across the remaining days automatically.
 - Provides analytics for remaining budget, total spent, days left, spend count, minimum and maximum spends, and categories.
 - Exports spending records as a CSV file with amount, comment, and readable commit time.
 - Supports light and dark themes.

@@ -1,5 +1,9 @@
 const STORAGE_KEY = 'budget-tool-web-state';
-const today = () => new Date().toISOString().slice(0, 10);
+const dateKey = value => {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+const today = () => dateKey(new Date());
 const nowTime = () => new Date().toTimeString().slice(0, 5);
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const dateValue = value => new Date(`${value}T12:00:00`);
@@ -7,8 +11,8 @@ const dateLabel = value => new Intl.DateTimeFormat(undefined, { weekday: 'short'
 const fullDate = value => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(dateValue(value));
 const money = (value, currency = state.currency || 'USD') => currency === 'NONE' ? Number(value || 0).toFixed(2) : new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value) || 0);
 const daysBetween = (from, to) => Math.max(1, Math.floor((dateValue(to) - dateValue(from)) / 86400000) + 1);
-const addDays = (value, amount) => { const result = dateValue(value); result.setDate(result.getDate() + amount); return result.toISOString().slice(0, 10); };
-const defaultState = () => ({ budget: 0, dailyBudget: 0, spentFromDailyBudget: 0, startDate: today(), finishDate: addDays(today(), 30), finishPeriodActualDate: null, currency: 'USD', distribution: 'ASK', hideOverspendingWarn: false, transactions: [], theme: 'system' });
+const addDays = (value, amount) => { const result = dateValue(value); result.setDate(result.getDate() + amount); return dateKey(result); };
+const defaultState = () => ({ budget: 0, dailyBudget: 0, spentFromDailyBudget: 0, appliedDailyDate: null, startDate: today(), finishDate: addDays(today(), 30), finishPeriodActualDate: null, currency: 'USD', hideOverspendingWarn: false, transactions: [], theme: 'system' });
 const supportedCurrencies = () => {
   const fallback = ['AED','AFN','ALL','AMD','ANG','AOA','ARS','AUD','AWG','AZN','BAM','BBD','BDT','BGN','BHD','BIF','BMD','BND','BOB','BRL','BSD','BTN','BWP','BYN','BZD','CAD','CDF','CHF','CLP','CNY','COP','CRC','CUP','CVE','CZK','DJF','DKK','DOP','DZD','EGP','ERN','ETB','EUR','FJD','FKP','GBP','GEL','GHS','GIP','GMD','GNF','GTQ','GYD','HKD','HNL','HRK','HTG','HUF','IDR','ILS','INR','IQD','IRR','ISK','JMD','JOD','JPY','KES','KGS','KHR','KMF','KPW','KRW','KWD','KYD','KZT','LAK','LBP','LKR','LRD','LSL','LYD','MAD','MDL','MGA','MKD','MMK','MNT','MOP','MRU','MUR','MVR','MWK','MXN','MYR','MZN','NAD','NGN','NIO','NOK','NPR','NZD','OMR','PAB','PEN','PGK','PHP','PKR','PLN','PYG','QAR','RON','RSD','RUB','RWF','SAR','SBD','SCR','SDG','SEK','SGD','SHP','SLE','SLL','SOS','SRD','SSP','STN','SYP','SZL','THB','TJS','TMT','TND','TOP','TRY','TTD','TWD','TZS','UAH','UGX','USD','UYU','UZS','VES','VND','VUV','WST','XAF','XCD','XOF','XPF','YER','ZAR','ZMW','ZWL'];
   const browserCurrencies = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : [];
@@ -97,6 +101,7 @@ function render() {
   // Rendering replaces the app markup. Keep an already-open sheet still during
   // state updates (for example, deleting a spend from History) instead of
   // replaying its entrance animation.
+  applyRolloverIfNeeded();
   const preserveSheetMotion = Boolean(sheet && sheet === renderedSheet);
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
   document.body.dataset.theme = effectiveTheme;
@@ -186,16 +191,10 @@ function sheetView() { if (sheet === 'onboarding') return `<div class="sheet-lay
   if (sheet === 'settings') return freshSettingsSheet();
   if (sheet === 'history') return `<div class="sheet-layer"><section class="sheet history-sheet"><span class="sheet-grip"></span><div class="sheet-title history-sheet-title"><span></span><h2>History</h2><button class="round-button" data-action="close" aria-label="Close history">×</button></div>${history()}</section></div>`;
   if (sheet === 'analytics') return analyticsSheet();
-  if (sheet === 'distribution') return distributionSheet();
-  if (sheet === 'recalc') return recalcSheet();
   if (sheet === 'theme') return themeSheet();
   return '';
 }
-function walletSheet() { return `<div class="sheet-layer"><form class="sheet" id="wallet-form"><span class="sheet-grip"></span><div class="sheet-title"><button type="button" class="round-button" data-action="close">${icon('back')}</button><h2>Wallet</h2><button class="text-submit" type="submit">Apply</button></div><p class="section-label">${state.budget ? 'edit period' : 'new period'}</p><label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${state.budget || ''}" required></label><div class="form-grid"><label class="field-label">Starts<input name="startDate" type="date" value="${state.budget ? state.startDate : today()}" required></label><label class="field-label">Finishes<input name="finishDate" type="date" min="${today()}" value="${state.finishDate}" required></label></div><div class="form-grid"><label class="field-label">Currency<select name="currency"><option value="NONE" ${state.currency === 'NONE' ? 'selected' : ''}>No currency symbol</option>${supportedCurrencies().map(code => `<option value="${code}" ${state.currency === code ? 'selected' : ''}>${code} — ${currencyName(code)}</option>`).join('')}</select></label></div>${state.budget ? `<button type="button" class="sheet-row danger" data-action="finish">Finish period early</button><button type="button" class="sheet-row" data-action="export">${icon('download')} Export spends to CSV</button>` : ''}</form></div>`; }
-function settingsSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><span></span><h2>Settings</h2><button class="round-button" data-action="close">×</button></div><button class="sheet-row" data-action="wallet">${icon('wallet')}<span><strong>Wallet</strong><small>${state.budget ? money(state.budget) : 'Set a period'}</small></span>${icon('edit')}</button><button class="sheet-row" data-action="theme"><span class="settings-symbol">◐</span><span><strong>Theme</strong><small>${state.theme === 'dark' ? 'Dark' : 'Light'}</small></span></button><button class="sheet-row" data-action="recalc"><span class="settings-symbol">↻</span><span><strong>Unused daily budget</strong><small>${state.distribution === 'REST' ? 'Split to rest days' : state.distribution === 'ADD_TODAY' ? 'Add to today' : 'Always ask'}</small></span></button><button class="sheet-row" data-action="analytics">${icon('chart')}<span><strong>Analytics</strong><small>See spending patterns</small></span></button><button class="sheet-row" data-action="export">${icon('download')}<span><strong>Export CSV</strong><small>Save every spend</small></span></button><div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div></section></div>`; }
-function distributionSheet() { const choices = [['ASK', 'Always ask', 'Choose each time a new day starts.'], ['REST', 'Split to rest days', 'Spread unused money across the remaining days.'], ['ADD_TODAY', 'Add to today', 'Give today the unused money.']]; return `<div class="sheet-layer"><section class="sheet distribution-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button><h2>Unused daily budget</h2><span></span></div><p class="sheet-copy">Choose what Buckwheat should do with money left at the end of a day.</p>${choices.map(([value, title, description]) => `<button class="distribution-choice ${state.distribution === value ? 'selected' : ''}" data-distribution="${value}"><span class="choice-radio"></span><span><strong>${title}</strong><small>${description}</small></span></button>`).join('')}</section></div>`; }
 function analyticsSheet() { const list = spends(); const amounts = list.map(item => Number(item.value)); const min = list.length ? list.reduce((a, b) => Number(a.value) < Number(b.value) ? a : b) : null; const max = list.length ? list.reduce((a, b) => Number(a.value) > Number(b.value) ? a : b) : null; const tags = {}; list.forEach(item => tags[item.comment || 'without tag'] = (tags[item.comment || 'without tag'] || 0) + Number(item.value)); return `<div class="sheet-layer"><section class="sheet analytics-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close">${icon('back')}</button><h2>Analytics</h2><button class="round-button" data-action="export">${icon('download')}</button></div><article class="analytics-budget"><span class="section-label">whole budget</span><strong>${money(state.budget)}</strong><small>${fullDate(state.startDate)} – ${fullDate(state.finishDate)}</small></article><div class="stat-grid"><article><span>remaining</span><strong>${money(remainingBudget())}</strong></article><article><span>spent</span><strong>${money(totalSpent())}</strong></article><article><span>days left</span><strong>${daysLeft()}</strong></article><article><span>spends</span><strong>${list.length}</strong></article></div>${min ? `<div class="minmax"><article><span>minimum spend</span><strong>${money(min.value)}</strong><small>${dateLabel(min.date)}${min.comment ? ` · ${escapeHtml(min.comment)}` : ''}</small></article><article><span>maximum spend</span><strong>${money(max.value)}</strong><small>${dateLabel(max.date)}${max.comment ? ` · ${escapeHtml(max.comment)}` : ''}</small></article></div>` : ''}<div class="analytics-block"><span class="section-label">categories</span>${Object.entries(tags).sort((a, b) => b[1] - a[1]).map(([tag, amount]) => `<div class="category-row"><span>${escapeHtml(tag)}</span><strong>${money(amount)}</strong><i style="width:${amount / Math.max(...Object.values(tags)) * 100}%"></i></div>`).join('') || '<p class="muted">No spends yet.</p>'}</div></section></div>`; }
-function recalcSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close">${icon('back')}</button><h2>New daily budget</h2><span></span></div><p class="sheet-copy">You have unused money from the previous day. What should happen to it?</p><button class="choice-row" data-recalc="REST"><strong>Split to rest days</strong><small>Spread it across the remaining days.</small></button><button class="choice-row" data-recalc="ADD_TODAY"><strong>Add to today</strong><small>Give today the extra room.</small></button><button class="choice-row" data-recalc="LAST_DAY"><strong>Start the last day</strong><small>Use all remaining money today.</small></button></section></div>`; }
 function themeSheet() { const choices = [['system', 'Follow system theme', 'Automatically match your device theme.'], ['light', 'Light theme', 'Always use light mode.'], ['dark', 'Dark theme', 'Always use dark mode.']]; return `<div class="sheet-layer"><section class="sheet distribution-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button><h2>Theme</h2><span></span></div><p class="sheet-copy">Choose your preferred appearance.</p>${choices.map(([value, title, description]) => `<button class="distribution-choice ${state.theme === value ? 'selected' : ''}" data-action="set-theme:${value}"><span class="choice-radio"></span><span><strong>${title}</strong><small>${description}</small></span></button>`).join('')}</section></div>`; }
 
 function bind(root = document) {
@@ -227,8 +226,11 @@ function bind(root = document) {
   root.querySelectorAll('[data-tag]').forEach(button => button.addEventListener('click', () => { editorComment = button.dataset.tag; render(); }));
   root.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => beginEdit(button.dataset.edit)));
   root.querySelectorAll('[data-delete]').forEach(button => button.addEventListener('click', () => remove(button.dataset.delete)));
-  root.querySelectorAll('[data-recalc]').forEach(button => button.addEventListener('click', () => recalc(button.dataset.recalc)));
-  root.querySelectorAll('[data-distribution]').forEach(button => button.addEventListener('click', () => { state.distribution = button.dataset.distribution; save(); sheet = null; show('Preference saved'); render(); }));
+  const currencySelect = root.querySelector('#wallet-form [name="currency"]');
+  currencySelect?.addEventListener('change', () => {
+    const hint = root.querySelector('.currency-name-hint');
+    if (hint) hint.textContent = currencyName(currencySelect.value);
+  });
 
   // History search input
   const searchInput = root.querySelector('#history-search-input');
@@ -302,13 +304,12 @@ function updateEditorPreview() {
 
 function action(value) {
   haptic(10);
-  const sheetAction = ['settings', 'wallet', 'new-period', 'history', 'analytics', 'recalc', 'theme', 'close'].includes(value);
+  const sheetAction = ['settings', 'wallet', 'new-period', 'history', 'analytics', 'theme', 'close'].includes(value);
   if (value === 'settings') sheet = 'settings';
   if (value === 'wallet') sheet = 'wallet';
   if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; }
   if (value === 'history') sheet = 'history';
   if (value === 'analytics') sheet = 'analytics';
-  if (value === 'recalc') sheet = 'distribution';
   if (value === 'theme') sheet = 'theme';
   if (value === 'close') sheet = null;
   if (sheetAction) {
@@ -332,33 +333,45 @@ function commit() { const value = normalize(rawValue); if (!value) { if (editing
 function accountAdd(item) { if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) - item.value / daysLeft()); }
 function accountRemove(item) { if (!item) return; if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft()); }
 
+function redistributeDailyBudget() {
+  // Spare or overspent money is always spread across the remaining days,
+  // including today. Use remaining + today's spends so a late first-open of
+  // the day still yields the same daily allowance the pill previewed yesterday.
+  const days = Math.max(1, daysLeft());
+  state.dailyBudget = normalize((remainingBudget() + todaySpent()) / days);
+  state.spentFromDailyBudget = normalize(todaySpent());
+  state.appliedDailyDate = today();
+}
+
+function applyRolloverIfNeeded() {
+  if (!state.budget || daysLeft() <= 0) return false;
+  if (!state.appliedDailyDate || state.appliedDailyDate === today()) return false;
+  redistributeDailyBudget();
+  save();
+  return true;
+}
+
 function reconcileDerivedState() {
   // Keep the daily display correct after reopening the app or crossing into a
   // new day. The total remaining budget itself is always derived from spends.
   const actualTodaySpent = normalize(todaySpent());
-  if (normalize(state.spentFromDailyBudget) !== actualTodaySpent) {
-    // Check if we crossed into a new day (spentFromDailyBudget was > 0, now actualTodaySpent is 0)
-    const crossedToNewDay = normalize(state.spentFromDailyBudget) > 0 && actualTodaySpent === 0;
-    state.spentFromDailyBudget = actualTodaySpent;
-    
-    // When we cross into a new day, handle the unused daily budget based on distribution setting
-    if (crossedToNewDay && state.budget && daysLeft() > 0) {
-      if (state.distribution === 'REST') {
-        recalc('REST');
-        return; // recalc already calls save() and render()
-      } else if (state.distribution === 'ADD_TODAY') {
-        recalc('ADD_TODAY');
-        return; // recalc already calls save() and render()
-      } else if (state.distribution === 'ASK') {
-        // Show the recalc sheet to ask the user
-        sheet = 'recalc';
-      }
-    }
+  const previousSpent = normalize(state.spentFromDailyBudget);
+  const previousDay = state.appliedDailyDate;
+  const newCalendarDay = previousDay ? previousDay !== today() : previousSpent !== actualTodaySpent && actualTodaySpent === 0;
+
+  state.spentFromDailyBudget = actualTodaySpent;
+  if (!previousDay) state.appliedDailyDate = today();
+
+  if (newCalendarDay && state.budget && daysLeft() > 0) {
+    redistributeDailyBudget();
+    save();
+    return;
+  }
+
+  if (previousSpent !== actualTodaySpent || !previousDay) {
     save();
   }
 }
-function saveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today()) return; const isNew = !state.budget; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; save(); sheet = null; show('Wallet saved'); render(); }
-function recalc(method) { const remaining = remainingBudget(); state.dailyBudget = normalize(method === 'LAST_DAY' ? remaining : remaining / Math.max(1, daysLeft())); state.spentFromDailyBudget = 0; state.distribution = method === 'REST' ? 'REST' : method === 'ADD_TODAY' ? 'ADD_TODAY' : 'ASK'; state.transactions.push({ id: uid(), type: 'SET_DAILY_BUDGET', value: state.dailyBudget, date: today(), time: nowTime(), comment: '' }); save(); sheet = null; show('Daily budget updated'); render(); }
 
 function refreshHistoryViews() {
   document.querySelectorAll('.history-content').forEach(content => {
@@ -415,11 +428,16 @@ function show(message, hasUndo = false) {
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character])); }
 function escapeAttr(value) { return escapeHtml(value); }
 
-function freshSettingsSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><span></span><h2>Settings</h2><button class="round-button" data-action="close">×</button></div><button class="sheet-row" data-action="wallet">${icon('wallet')}<span><strong>Wallet</strong><small>${state.budget ? money(state.budget) : 'Set a period'}</small></span>${icon('edit')}</button><button class="sheet-row" data-action="new-period"><span class="settings-symbol">＋</span><span><strong>New period</strong><small>Start with the intro and create a fresh budget</small></span></button><button class="sheet-row" data-action="theme"><span class="settings-symbol">◐</span><span><strong>Theme</strong><small>${state.theme === 'system' ? 'Follow system' : state.theme === 'dark' ? 'Dark' : 'Light'}</small></span></button><button class="sheet-row" data-action="recalc"><span class="settings-symbol">↻</span><span><strong>Unused daily budget</strong><small>${state.distribution === 'REST' ? 'Split to rest days' : state.distribution === 'ADD_TODAY' ? 'Add to today' : 'Always ask'}</small></span></button><button class="sheet-row" data-action="analytics">${icon('chart')}<span><strong>Analytics</strong><small>See spending patterns</small></span></button><button class="sheet-row" data-action="export">${icon('download')}<span><strong>Export CSV</strong><small>Save every spend</small></span></button><div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div></section></div>`; }
+function freshSettingsSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><span></span><h2>Settings</h2><button class="round-button" data-action="close">×</button></div><button class="sheet-row" data-action="wallet">${icon('wallet')}<span><strong>Wallet</strong><small>${state.budget ? money(state.budget) : 'Set a period'}</small></span>${icon('edit')}</button><button class="sheet-row" data-action="new-period"><span class="settings-symbol">＋</span><span><strong>New period</strong><small>Start with the intro and create a fresh budget</small></span></button><button class="sheet-row" data-action="theme"><span class="settings-symbol">◐</span><span><strong>Theme</strong><small>${state.theme === 'system' ? 'Follow system' : state.theme === 'dark' ? 'Dark' : 'Light'}</small></span></button><button class="sheet-row" data-action="analytics">${icon('chart')}<span><strong>Analytics</strong><small>See spending patterns</small></span></button><button class="sheet-row" data-action="export">${icon('download')}<span><strong>Export CSV</strong><small>Save every spend</small></span></button><div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div></section></div>`; }
 
-function freshWalletSheet() { const fresh = !state.budget || startingNewPeriod; return `<div class="sheet-layer"><form class="sheet" id="wallet-form"><span class="sheet-grip"></span><div class="sheet-title"><button type="button" class="round-button" data-action="close">${icon('back')}</button><h2>Wallet</h2><button class="text-submit" type="submit">Apply</button></div><p class="section-label">${fresh ? 'new period' : 'edit period'}</p><label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${fresh ? '' : state.budget}" required></label><div class="form-grid"><label class="field-label">Starts<input name="startDate" type="date" value="${fresh ? today() : state.startDate}" required></label><label class="field-label">Finishes<input name="finishDate" type="date" min="${today()}" value="${state.finishDate}" required></label></div><div class="form-grid"><label class="field-label">Currency<select name="currency"><option value="NONE" ${state.currency === 'NONE' ? 'selected' : ''}>No currency symbol</option>${supportedCurrencies().map(code => `<option value="${code}" ${state.currency === code ? 'selected' : ''}>${code} — ${currencyName(code)}</option>`).join('')}</select></label></div>${fresh ? '' : `<button type="button" class="sheet-row danger" data-action="finish">Finish period early</button><button type="button" class="sheet-row" data-action="export">${icon('download')} Export spends to CSV</button>`}</form></div>`; }
+function currencyOptions() {
+  const selected = state.currency || 'USD';
+  return `<option value="NONE" ${selected === 'NONE' ? 'selected' : ''}>NONE</option>${supportedCurrencies().map(code => `<option value="${code}" ${selected === code ? 'selected' : ''}>${code}</option>`).join('')}`;
+}
 
-function freshSaveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today() || finish < start) return; const isNew = !state.budget || startingNewPeriod; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.finishPeriodActualDate = null; startingNewPeriod = false; save(); sheet = null; show('Wallet saved'); render(); }
+function freshWalletSheet() { const fresh = !state.budget || startingNewPeriod; return `<div class="sheet-layer"><form class="sheet" id="wallet-form"><span class="sheet-grip"></span><div class="sheet-title"><button type="button" class="round-button" data-action="close">${icon('back')}</button><h2>Wallet</h2><button class="text-submit" type="submit">Apply</button></div><p class="section-label">${fresh ? 'new period' : 'edit period'}</p><label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${fresh ? '' : state.budget}" required></label><div class="form-grid"><label class="field-label">Starts<input name="startDate" type="date" value="${fresh ? today() : state.startDate}" required></label><label class="field-label">Finishes<input name="finishDate" type="date" min="${today()}" value="${state.finishDate}" required></label></div><div class="form-grid"><label class="field-label">Currency<select name="currency" class="currency-select">${currencyOptions()}</select><span class="currency-name-hint">${escapeHtml(currencyName(state.currency || 'USD'))}</span></label></div>${fresh ? '' : `<button type="button" class="sheet-row danger" data-action="finish">Finish period early</button><button type="button" class="sheet-row" data-action="export">${icon('download')} Export spends to CSV</button>`}</form></div>`; }
+
+function freshSaveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today() || finish < start) return; const isNew = !state.budget || startingNewPeriod; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.appliedDailyDate = today(); state.finishPeriodActualDate = null; startingNewPeriod = false; save(); sheet = null; show('Wallet saved'); render(); }
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.theme === 'system') render(); });
 
@@ -468,6 +486,12 @@ function handleHash() {
 }
 window.addEventListener('hashchange', () => { handleHash(); render(); });
 handleHash();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') render();
+});
+setInterval(() => {
+  if (state.appliedDailyDate && state.appliedDailyDate !== today()) render();
+}, 60000);
 
 reconcileDerivedState();
 
