@@ -338,6 +338,11 @@ function reconcileDerivedState() {
   const actualTodaySpent = normalize(todaySpent());
   if (normalize(state.spentFromDailyBudget) !== actualTodaySpent) {
     state.spentFromDailyBudget = actualTodaySpent;
+    // When we cross into a new day, recalculate the daily budget based on
+    // what's actually remaining and the days left
+    if (state.budget && daysLeft() > 0) {
+      state.dailyBudget = normalize(remainingBudget() / daysLeft());
+    }
     save();
   }
 }
