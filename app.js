@@ -40,7 +40,13 @@ function haptic(ms = 10) {
   } catch {}
 }
 
-function loadState() { try { return { ...defaultState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') }; } catch { return defaultState(); } }
+function loadState() {
+  try {
+    return { ...defaultState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') };
+  } catch {
+    return defaultState();
+  }
+}
 function save() {
   // Persist a repairable derived value, never a stale one. This covers every
   // mutation path that writes the ledger, including edits, deletes, and undo.
@@ -48,9 +54,17 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 function spends() { return state.transactions.filter(item => item.type === 'SPENT'); }
-function income() { return state.transactions.filter(item => item.type === 'INCOME').reduce((total, item) => total + Number(item.value), 0); }
+function income() {
+  return state.transactions
+    .filter(item => item.type === 'INCOME')
+    .reduce((total, item) => total + Number(item.value), 0);
+}
 function totalSpent() { return spends().reduce((total, item) => total + Number(item.value), 0); }
-function todaySpent() { return spends().filter(item => item.date === today()).reduce((total, item) => total + Number(item.value), 0); }
+function todaySpent() {
+  return spends()
+    .filter(item => item.date === today())
+    .reduce((total, item) => total + Number(item.value), 0);
+}
 // The ledger is the source of truth. Never derive the total remaining budget
 // from the persisted daily counter: that counter can be stale after an edit,
 // deletion, restore, or a new calendar day.
@@ -60,7 +74,11 @@ function remainingBudget() {
   return Math.max(0, Math.min(budget, calculated));
 }
 function daysLeft() { return state.finishDate ? daysBetween(today(), state.finishDate) : 0; }
-function restToday() { return Number(state.dailyBudget || 0) - Number(state.spentFromDailyBudget || 0) - (Number(rawValue) || 0); }
+function restToday() {
+  return Number(state.dailyBudget || 0)
+    - Number(state.spentFromDailyBudget || 0)
+    - (Number(rawValue) || 0);
+}
 function newDailyBudget() {
   // When today is overspent, spread what remains (including the currently
   // typed, uncommitted spend) across the following days.
@@ -78,8 +96,24 @@ function pillDisplay() {
     progress: Math.max(0, Math.min(100, state.dailyBudget ? (daily / state.dailyBudget) * 100 : 0)),
   };
 }
-function normalize(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0; }
-function icon(name) { const icons = { settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>', wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>', back: '<path d="m15 18-6-6 6-6"/>', calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>', trash: '<path d="M5 7h14m-9 4v5m4-5v5M8 7l1-3h6l1 3m-9 0 1 14h8l1-14"/>', chart: '<path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-7"/>', download: '<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 20h16"/>', check: '<path d="M20 6 9 17l-5-5"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>' }; return `<svg viewBox="0 0 24 24">${icons[name] || ''}</svg>`; }
+function normalize(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0;
+}
+const ICONS = {
+  settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>',
+  wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>',
+  trash: '<path d="M5 7h14m-9 4v5m4-5v5M8 7l1-3h6l1 3m-9 0 1 14h8l1-14"/>',
+  chart: '<path d="M4 19V5m0 14h16M8 16v-4m4 4V8m4 8v-7"/>',
+  download: '<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 20h16"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+};
+function icon(name) { return `<svg viewBox="0 0 24 24">${ICONS[name] || ''}</svg>`; }
 
 function createRipple(event) {
   const button = event.currentTarget;
@@ -130,12 +164,97 @@ function renderSheet() {
   }
   renderedSheet = sheet;
 }
-function desktopHistory() { return `<aside class="history-pane"><div class="history-top"><div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></div>${history(false)}</aside>`; }
-function editor() { const mode = editingId ? 'EDIT' : 'ADD'; const active = Boolean(rawValue || editorComment || editingId); const pill = pillDisplay(); return `<section class="editor-shell"><header class="editor-toolbar">${mode === 'EDIT' ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>` : `<span class="editor-spacer"></span>`}<button class="budget-pill ${pill.isOverdraft ? 'over' : ''}" data-action="wallet"><span class="pill-status">${pill.status}</span><strong>${pill.value}</strong><i style="width:${pill.progress}%"></i></button><button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button></header><section class="amount-area"><span class="amount-label">${mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend'}</span><strong class="amount-display">${rawValue || '0'}</strong><span class="currency-label">${state.currency === 'NONE' ? '' : state.currency}</span></section>${mode === 'EDIT' ? dateEditor() : tagging()}${historyToggle()}</section>`; }
-function tagging() { const tags = [...new Set(spends().map(item => item.comment).filter(Boolean))].reverse(); return `<div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note" autocomplete="off"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div>${tags.length ? `<div class="tag-list">${tags.map(tag => `<button data-tag="${escapeAttr(tag)}">${escapeHtml(tag)}</button>`).join('')}</div>` : ''}</div>`; }
-function dateEditor() { return `<div class="date-editor"><label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${editorDate > today() ? today() : editorDate}"></label><label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label></div><div class="tagging-wrapper"><div class="tagging"><input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note"><button class="comment-done" data-action="comment-done">${icon('check')}</button></div></div>`; }
-function historyToggle() { return `<button class="history-handle" data-action="history" aria-label="Open history"><span></span></button>`; }
-function keyboard() { return `<section class="keyboard"><div class="key-grid"><button class="key" data-key="7">7</button><button class="key" data-key="8">8</button><button class="key" data-key="9">9</button><button class="key secondary-key" data-key="backspace">⌫</button><button class="key" data-key="4">4</button><button class="key" data-key="5">5</button><button class="key" data-key="6">6</button><span></span><button class="key" data-key="1">1</button><button class="key" data-key="2">2</button><button class="key" data-key="3">3</button><button class="key apply-key" data-action="commit">✓</button><button class="key zero-key" data-key="0">0</button><button class="key" data-key=".">.</button></div></section>`; }
+function desktopHistory() {
+  return '<aside class="history-pane"><div class="history-top">'
+    + '<div class="mark"><img src="icons/money-bags.svg" alt=""/><span>Budget Tool</span></div>'
+    + `<button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button>`
+    + `</div>${history(false)}</aside>`;
+}
+function editor() {
+  const mode = editingId ? 'EDIT' : 'ADD';
+  const active = Boolean(rawValue || editorComment || editingId);
+  const pill = pillDisplay();
+  const toolbarLeft = mode === 'EDIT'
+    ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>`
+    : '<span class="editor-spacer"></span>';
+  const amountLabel = mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend';
+  const currencyLabel = state.currency === 'NONE' ? '' : state.currency;
+  return '<section class="editor-shell">'
+    + '<header class="editor-toolbar">'
+    + toolbarLeft
+    + `<button class="budget-pill ${pill.isOverdraft ? 'over' : ''}" data-action="wallet"><span class="pill-status">${pill.status}</span><strong>${pill.value}</strong><i style="width:${pill.progress}%"></i></button>`
+    + `<button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button>`
+    + '</header>'
+    + '<section class="amount-area">'
+    + `<span class="amount-label">${amountLabel}</span>`
+    + `<strong class="amount-display">${rawValue || '0'}</strong>`
+    + `<span class="currency-label">${currencyLabel}</span>`
+    + '</section>'
+    + (mode === 'EDIT' ? dateEditor() : tagging())
+    + historyToggle()
+    + '</section>';
+}
+function tagChip(tag) { return `<button data-tag="${escapeAttr(tag)}">${escapeHtml(tag)}</button>`; }
+function tagging() {
+  const tags = [...new Set(spends().map(item => item.comment).filter(Boolean))].reverse();
+  const list = tags.length ? `<div class="tag-list">${tags.map(tagChip).join('')}</div>` : '';
+  return '<div class="tagging-wrapper"><div class="tagging">'
+    + `<input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note" autocomplete="off">`
+    + `<button class="comment-done" data-action="comment-done">${icon('check')}</button>`
+    + '</div>'
+    + list
+    + '</div>';
+}
+function dateEditor() {
+  const safeDate = editorDate > today() ? today() : editorDate;
+  return '<div class="date-editor">'
+    + `<label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${safeDate}"></label>`
+    + `<label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label>`
+    + '</div><div class="tagging-wrapper"><div class="tagging">'
+    + `<input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note">`
+    + `<button class="comment-done" data-action="comment-done">${icon('check')}</button>`
+    + '</div></div>';
+}
+function historyToggle() { return '<button class="history-handle" data-action="history" aria-label="Open history"><span></span></button>'; }
+function keyButton({ key, className = '', action, label }) {
+  const attribute = action ? `data-action="${action}"` : `data-key="${key}"`;
+  const classes = ['key', className].filter(Boolean).join(' ');
+  return `<button class="${classes}" ${attribute}>${label}</button>`;
+}
+function keyboard() {
+  return '<section class="keyboard"><div class="key-grid">'
+    + keyButton({ key: '7', label: '7' })
+    + keyButton({ key: '8', label: '8' })
+    + keyButton({ key: '9', label: '9' })
+    + keyButton({ key: 'backspace', className: 'secondary-key', label: '⌫' })
+    + keyButton({ key: '4', label: '4' })
+    + keyButton({ key: '5', label: '5' })
+    + keyButton({ key: '6', label: '6' })
+    + '<span></span>'
+    + keyButton({ key: '1', label: '1' })
+    + keyButton({ key: '2', label: '2' })
+    + keyButton({ key: '3', label: '3' })
+    + keyButton({ key: '', action: 'commit', className: 'apply-key', label: '✓' })
+    + keyButton({ key: '0', className: 'zero-key', label: '0' })
+    + keyButton({ key: '.', label: '.' })
+    + '</div></section>';
+}
+function spentRow(item, readOnly) {
+  const actions = readOnly ? '' : `
+              <button class="row-action" data-edit="${item.id}" aria-label="Edit spend">${icon('edit')}</button>
+              <button class="row-action danger" data-delete="${item.id}" aria-label="Delete spend">${icon('trash')}</button>
+            `;
+  return `
+          <div class="spent-row">
+            <div class="spent-mark">−</div>
+            <div class="spent-copy">
+              <strong>${money(item.value)}</strong>
+              <span>${item.time || ''}${item.comment ? ` · ${escapeHtml(item.comment)}` : ''}</span>
+            </div>
+            ${actions}
+          </div>
+        `;
+}
 function history(readOnly = false) {
   const allSpends = spends().sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
   const query = historySearch.trim().toLowerCase();
@@ -169,33 +288,88 @@ function history(readOnly = false) {
     ${Object.entries(grouped).map(([date, items]) => `
       <section class="date-group">
         <div class="date-divider"><strong>${dateLabel(date)}</strong><span>${money(items.reduce((sum, item) => sum + Number(item.value), 0))}</span></div>
-        ${items.map(item => `
-          <div class="spent-row">
-            <div class="spent-mark">−</div>
-            <div class="spent-copy">
-              <strong>${money(item.value)}</strong>
-              <span>${item.time || ''}${item.comment ? ` · ${escapeHtml(item.comment)}` : ''}</span>
-            </div>
-            ${readOnly ? '' : `
-              <button class="row-action" data-edit="${item.id}" aria-label="Edit spend">${icon('edit')}</button>
-              <button class="row-action danger" data-delete="${item.id}" aria-label="Delete spend">${icon('trash')}</button>
-            `}
-          </div>
-        `).join('')}
+        ${items.map(item => spentRow(item, readOnly)).join('')}
       </section>
     `).join('') || `<div class="history-empty">${query ? 'No matching spends found.' : 'Your spends will appear here.'}</div>`}
   </section>`;
 }
-function sheetView() { if (sheet === 'onboarding') return `<div class="sheet-layer"><section class="sheet onboarding"><span class="sheet-grip"></span><p class="section-label">welcome</p><h2>Hello.</h2><p class="sheet-copy">Budget Tool helps you spend money wisely by giving you a clear amount for each day.</p><ol><li><b>1</b><span><strong>Set a period budget</strong><small>Choose your total and finish date.</small></span></li><li><b>2</b><span><strong>Record spends</strong><small>Write down what leaves your wallet.</small></span></li><li><b>3</b><span><strong>See what remains</strong><small>Keep your daily number visible.</small></span></li></ol><button class="primary full" data-action="wallet">Set period</button></section></div>`;
+function sheetView() {
+  if (sheet === 'onboarding') {
+    return '<div class="sheet-layer"><section class="sheet onboarding"><span class="sheet-grip"></span>'
+      + '<p class="section-label">welcome</p><h2>Hello.</h2>'
+      + '<p class="sheet-copy">Budget Tool helps you spend money wisely by giving you a clear amount for each day.</p>'
+      + '<ol>'
+      + '<li><b>1</b><span><strong>Set a period budget</strong><small>Choose your total and finish date.</small></span></li>'
+      + '<li><b>2</b><span><strong>Record spends</strong><small>Write down what leaves your wallet.</small></span></li>'
+      + '<li><b>3</b><span><strong>See what remains</strong><small>Keep your daily number visible.</small></span></li>'
+      + '</ol>'
+      + '<button class="primary full" data-action="wallet">Set period</button>'
+      + '</section></div>';
+  }
   if (sheet === 'wallet') return freshWalletSheet();
   if (sheet === 'settings') return freshSettingsSheet();
-  if (sheet === 'history') return `<div class="sheet-layer"><section class="sheet history-sheet"><span class="sheet-grip"></span><div class="sheet-title history-sheet-title"><span></span><h2>History</h2><button class="round-button" data-action="close" aria-label="Close history">×</button></div>${history()}</section></div>`;
+  if (sheet === 'history') {
+    return '<div class="sheet-layer"><section class="sheet history-sheet"><span class="sheet-grip"></span>'
+      + sheetTitle('History', { className: 'history-sheet-title', trailing: '<button class="round-button" data-action="close" aria-label="Close history">×</button>' })
+      + `${history()}</section></div>`;
+  }
   if (sheet === 'analytics') return analyticsSheet();
   if (sheet === 'theme') return themeSheet();
   return '';
 }
-function analyticsSheet() { const list = spends(); const amounts = list.map(item => Number(item.value)); const min = list.length ? list.reduce((a, b) => Number(a.value) < Number(b.value) ? a : b) : null; const max = list.length ? list.reduce((a, b) => Number(a.value) > Number(b.value) ? a : b) : null; const tags = {}; list.forEach(item => tags[item.comment || 'without tag'] = (tags[item.comment || 'without tag'] || 0) + Number(item.value)); return `<div class="sheet-layer"><section class="sheet analytics-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close">${icon('back')}</button><h2>Analytics</h2><button class="round-button" data-action="export">${icon('download')}</button></div><article class="analytics-budget"><span class="section-label">whole budget</span><strong>${money(state.budget)}</strong><small>${fullDate(state.startDate)} – ${fullDate(state.finishDate)}</small></article><div class="stat-grid"><article><span>remaining</span><strong>${money(remainingBudget())}</strong></article><article><span>spent</span><strong>${money(totalSpent())}</strong></article><article><span>days left</span><strong>${daysLeft()}</strong></article><article><span>spends</span><strong>${list.length}</strong></article></div>${min ? `<div class="minmax"><article><span>minimum spend</span><strong>${money(min.value)}</strong><small>${dateLabel(min.date)}${min.comment ? ` · ${escapeHtml(min.comment)}` : ''}</small></article><article><span>maximum spend</span><strong>${money(max.value)}</strong><small>${dateLabel(max.date)}${max.comment ? ` · ${escapeHtml(max.comment)}` : ''}</small></article></div>` : ''}<div class="analytics-block"><span class="section-label">categories</span>${Object.entries(tags).sort((a, b) => b[1] - a[1]).map(([tag, amount]) => `<div class="category-row"><span>${escapeHtml(tag)}</span><strong>${money(amount)}</strong><i style="width:${amount / Math.max(...Object.values(tags)) * 100}%"></i></div>`).join('') || '<p class="muted">No spends yet.</p>'}</div></section></div>`; }
-function themeSheet() { const choices = [['system', 'Follow system theme', 'Automatically match your device theme.'], ['light', 'Light theme', 'Always use light mode.'], ['dark', 'Dark theme', 'Always use dark mode.']]; return `<div class="sheet-layer"><section class="sheet distribution-sheet"><span class="sheet-grip"></span><div class="sheet-title"><button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button><h2>Theme</h2><span></span></div><p class="sheet-copy">Choose your preferred appearance.</p>${choices.map(([value, title, description]) => `<button class="distribution-choice ${state.theme === value ? 'selected' : ''}" data-action="set-theme:${value}"><span class="choice-radio"></span><span><strong>${title}</strong><small>${description}</small></span></button>`).join('')}</section></div>`; }
+function analyticsSheet() {
+  const list = spends();
+  const min = list.length ? list.reduce((a, b) => Number(a.value) < Number(b.value) ? a : b) : null;
+  const max = list.length ? list.reduce((a, b) => Number(a.value) > Number(b.value) ? a : b) : null;
+  const byTag = {};
+  list.forEach(item => {
+    const tag = item.comment || 'without tag';
+    byTag[tag] = (byTag[tag] || 0) + Number(item.value);
+  });
+  const backButton = `<button class="round-button" data-action="close">${icon('back')}</button>`;
+  const exportButton = `<button class="round-button" data-action="export">${icon('download')}</button>`;
+  const minMax = min ? '<div class="minmax">'
+    + `<article><span>minimum spend</span><strong>${money(min.value)}</strong><small>${dateLabel(min.date)}${min.comment ? ` · ${escapeHtml(min.comment)}` : ''}</small></article>`
+    + `<article><span>maximum spend</span><strong>${money(max.value)}</strong><small>${dateLabel(max.date)}${max.comment ? ` · ${escapeHtml(max.comment)}` : ''}</small></article>`
+    + '</div>' : '';
+  const categoryMax = Math.max(0, ...Object.values(byTag));
+  const categories = Object.entries(byTag).sort((a, b) => b[1] - a[1])
+    .map(([tag, amount]) => `<div class="category-row"><span>${escapeHtml(tag)}</span><strong>${money(amount)}</strong><i style="width:${amount / categoryMax * 100}%"></i></div>`)
+    .join('') || '<p class="muted">No spends yet.</p>';
+  return '<div class="sheet-layer"><section class="sheet analytics-sheet">'
+    + '<span class="sheet-grip"></span>'
+    + sheetTitle('Analytics', { lead: backButton, trailing: exportButton })
+    + `<article class="analytics-budget"><span class="section-label">whole budget</span><strong>${money(state.budget)}</strong><small>${fullDate(state.startDate)} – ${fullDate(state.finishDate)}</small></article>`
+    + '<div class="stat-grid">'
+    + `<article><span>remaining</span><strong>${money(remainingBudget())}</strong></article>`
+    + `<article><span>spent</span><strong>${money(totalSpent())}</strong></article>`
+    + `<article><span>days left</span><strong>${daysLeft()}</strong></article>`
+    + `<article><span>spends</span><strong>${list.length}</strong></article>`
+    + '</div>'
+    + minMax
+    + '<div class="analytics-block">'
+    + '<span class="section-label">categories</span>'
+    + categories
+    + '</div>'
+    + '</section></div>';
+}
+function themeSheet() {
+  const choices = [
+    { value: 'system', title: 'Follow system theme', detail: 'Automatically match your device theme.' },
+    { value: 'light', title: 'Light theme', detail: 'Always use light mode.' },
+    { value: 'dark', title: 'Dark theme', detail: 'Always use dark mode.' },
+  ];
+  const backButton = `<button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button>`;
+  return '<div class="sheet-layer"><section class="sheet distribution-sheet">'
+    + '<span class="sheet-grip"></span>'
+    + sheetTitle('Theme', { lead: backButton, trailing: '<span></span>' })
+    + '<p class="sheet-copy">Choose your preferred appearance.</p>'
+    + choices.map(({ value, title, detail }) => {
+        const cls = `distribution-choice ${state.theme === value ? 'selected' : ''}`;
+        return `<button class="${cls}" data-action="set-theme:${value}"><span class="choice-radio"></span><span><strong>${title}</strong><small>${detail}</small></span></button>`;
+      }).join('')
+    + '</section></div>';
+}
 
 function bind(root = document) {
   root.querySelectorAll('button').forEach(btn => {
@@ -327,11 +501,65 @@ function action(value) {
   render();
 }
 
-function beginEdit(id) { const item = spends().find(entry => entry.id === id); if (!item) return; editingId = id; rawValue = String(item.value); editorComment = item.comment || ''; editorDate = item.date; editorTime = item.time || nowTime(); sheet = null; render(); }
-function resetEditor() { editingId = null; rawValue = ''; editorComment = ''; editorDate = today(); editorTime = nowTime(); render(); }
-function commit() { const value = normalize(rawValue); if (!value) { if (editingId) remove(editingId); return; } if (editingId) { const old = spends().find(item => item.id === editingId); state.transactions = state.transactions.filter(item => item.id !== editingId); accountRemove(old); } const item = { id: uid(), type: 'SPENT', value, date: editingId ? (editorDate > today() ? today() : editorDate) : today(), time: editingId ? editorTime : nowTime(), comment: editorComment.trim() }; state.transactions.push(item); accountAdd(item); save(); show('Spend recorded'); resetEditor(); }
-function accountAdd(item) { if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) - item.value / daysLeft()); }
-function accountRemove(item) { if (!item) return; if (item.date === today()) state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value); else state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft()); }
+function beginEdit(id) {
+  const item = spends().find(entry => entry.id === id);
+  if (!item) return;
+  editingId = id;
+  rawValue = String(item.value);
+  editorComment = item.comment || '';
+  editorDate = item.date;
+  editorTime = item.time || nowTime();
+  sheet = null;
+  render();
+}
+function resetEditor() {
+  editingId = null;
+  rawValue = '';
+  editorComment = '';
+  editorDate = today();
+  editorTime = nowTime();
+  render();
+}
+function commit() {
+  const value = normalize(rawValue);
+  if (!value) {
+    if (editingId) remove(editingId);
+    return;
+  }
+  if (editingId) {
+    const old = spends().find(item => item.id === editingId);
+    state.transactions = state.transactions.filter(item => item.id !== editingId);
+    accountRemove(old);
+  }
+  const item = {
+    id: uid(),
+    type: 'SPENT',
+    value,
+    date: editingId ? (editorDate > today() ? today() : editorDate) : today(),
+    time: editingId ? editorTime : nowTime(),
+    comment: editorComment.trim(),
+  };
+  state.transactions.push(item);
+  accountAdd(item);
+  save();
+  show('Spend recorded');
+  resetEditor();
+}
+function accountAdd(item) {
+  if (item.date === today()) {
+    state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) + item.value);
+  } else {
+    state.dailyBudget = normalize(Number(state.dailyBudget || 0) - item.value / daysLeft());
+  }
+}
+function accountRemove(item) {
+  if (!item) return;
+  if (item.date === today()) {
+    state.spentFromDailyBudget = normalize(Number(state.spentFromDailyBudget || 0) - item.value);
+  } else {
+    state.dailyBudget = normalize(Number(state.dailyBudget || 0) + item.value / daysLeft());
+  }
+}
 
 function redistributeDailyBudget() {
   // Spare or overspent money is always spread across the remaining days,
@@ -407,8 +635,27 @@ function undoDelete() {
   render();
 }
 
-function exportCommitTime(item) { const timestamp = new Date(`${item.date}T${item.time || '00:00'}:00`); if (Number.isNaN(timestamp.getTime())) return fullDate(item.date); return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(timestamp); }
-function exportCsv() { const rows = [['amount', 'comment', 'commit_time'], ...spends().sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)).map(item => [item.value, item.comment || '', exportCommitTime(item)].map(value => `"${String(value).replaceAll('"', '""')}"`))]; const blob = new Blob([rows.map(row => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `budget-tool-${state.startDate}-${state.finishDate}.csv`; link.click(); URL.revokeObjectURL(link.href); show('CSV exported'); }
+function exportCommitTime(item) {
+  const timestamp = new Date(`${item.date}T${item.time || '00:00'}:00`);
+  if (Number.isNaN(timestamp.getTime())) return fullDate(item.date);
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(timestamp);
+}
+function exportCsv() {
+  const rows = [
+    ['amount', 'comment', 'commit_time'],
+    ...spends()
+      .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
+      .map(item => [item.value, item.comment || '', exportCommitTime(item)]
+        .map(value => `"${String(value).replaceAll('"', '""')}"`)),
+  ];
+  const blob = new Blob([rows.map(row => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `budget-tool-${state.startDate}-${state.finishDate}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  show('CSV exported');
+}
 
 function show(message, hasUndo = false) {
   clearTimeout(toastTimer);
@@ -425,19 +672,109 @@ function show(message, hasUndo = false) {
   }
 }
 
-function escapeHtml(value) { return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character])); }
-function escapeAttr(value) { return escapeHtml(value); }
-
-function freshSettingsSheet() { return `<div class="sheet-layer"><section class="sheet"><span class="sheet-grip"></span><div class="sheet-title"><span></span><h2>Settings</h2><button class="round-button" data-action="close">×</button></div><button class="sheet-row" data-action="wallet">${icon('wallet')}<span><strong>Wallet</strong><small>${state.budget ? money(state.budget) : 'Set a period'}</small></span>${icon('edit')}</button><button class="sheet-row" data-action="new-period"><span class="settings-symbol">＋</span><span><strong>New period</strong><small>Start with the intro and create a fresh budget</small></span></button><button class="sheet-row" data-action="theme"><span class="settings-symbol">◐</span><span><strong>Theme</strong><small>${state.theme === 'system' ? 'Follow system' : state.theme === 'dark' ? 'Dark' : 'Light'}</small></span></button><button class="sheet-row" data-action="analytics">${icon('chart')}<span><strong>Analytics</strong><small>See spending patterns</small></span></button><button class="sheet-row" data-action="export">${icon('download')}<span><strong>Export CSV</strong><small>Save every spend</small></span></button><div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div></section></div>`; }
-
-function currencyOptions() {
-  const selected = state.currency || 'USD';
-  return `<option value="NONE" ${selected === 'NONE' ? 'selected' : ''}>NONE</option>${supportedCurrencies().map(code => `<option value="${code}" ${selected === code ? 'selected' : ''}>${code}</option>`).join('')}`;
+function escapeHtml(value) {
+  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return String(value).replace(/[&<>"']/g, character => entities[character]);
+}
+function escapeAttr(value) {
+  return escapeHtml(value);
 }
 
-function freshWalletSheet() { const fresh = !state.budget || startingNewPeriod; return `<div class="sheet-layer"><form class="sheet" id="wallet-form"><span class="sheet-grip"></span><div class="sheet-title"><button type="button" class="round-button" data-action="close">${icon('back')}</button><h2>Wallet</h2><button class="text-submit" type="submit">Apply</button></div><p class="section-label">${fresh ? 'new period' : 'edit period'}</p><label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${fresh ? '' : state.budget}" required></label><div class="form-grid"><label class="field-label">Starts<input name="startDate" type="date" value="${fresh ? today() : state.startDate}" required></label><label class="field-label">Finishes<input name="finishDate" type="date" min="${today()}" value="${state.finishDate}" required></label></div><div class="form-grid"><label class="field-label">Currency<select name="currency" class="currency-select">${currencyOptions()}</select><span class="currency-name-hint">${escapeHtml(currencyName(state.currency || 'USD'))}</span></label></div>${fresh ? '' : `<button type="button" class="sheet-row danger" data-action="finish">Finish period early</button><button type="button" class="sheet-row" data-action="export">${icon('download')} Export spends to CSV</button>`}</form></div>`; }
+function sheetTitle(title, { lead = '<span></span>', trailing = '', className = '' } = {}) {
+  const cls = className ? `sheet-title ${className}` : 'sheet-title';
+  return `<div class="${cls}">${lead}<h2>${title}</h2>${trailing}</div>`;
+}
+function sheetRowLead(symbol) {
+  return ICONS[symbol] ? icon(symbol) : `<span class="settings-symbol">${symbol}</span>`;
+}
+function sheetRow({ action, symbol, title, detail, trailing = '' }) {
+  return `<button class="sheet-row" data-action="${action}">${sheetRowLead(symbol)}<span><strong>${title}</strong><small>${detail}</small></span>${trailing}</button>`;
+}
+function freshSettingsSheet() {
+  const walletDetail = state.budget ? money(state.budget) : 'Set a period';
+  const themeDetail = state.theme === 'system' ? 'Follow system' : state.theme === 'dark' ? 'Dark' : 'Light';
+  return '<div class="sheet-layer"><section class="sheet">'
+    + '<span class="sheet-grip"></span>'
+    + sheetTitle('Settings', { trailing: '<button class="round-button" data-action="close">×</button>' })
+    + sheetRow({ action: 'wallet', symbol: 'wallet', title: 'Wallet', detail: walletDetail, trailing: icon('edit') })
+    + sheetRow({ action: 'new-period', symbol: '＋', title: 'New period', detail: 'Start with the intro and create a fresh budget' })
+    + sheetRow({ action: 'theme', symbol: '◐', title: 'Theme', detail: themeDetail })
+    + sheetRow({ action: 'analytics', symbol: 'chart', title: 'Analytics', detail: 'See spending patterns' })
+    + sheetRow({ action: 'export', symbol: 'download', title: 'Export CSV', detail: 'Save every spend' })
+    + '<div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div>'
+    + '</section></div>';
+}
 
-function freshSaveWallet(event) { event.preventDefault(); const data = new FormData(event.currentTarget); const nextBudget = normalize(data.get('budget')); const start = data.get('startDate'); const finish = data.get('finishDate'); if (!nextBudget || finish < today() || finish < start) return; const isNew = !state.budget || startingNewPeriod; if (isNew) { state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }]; state.spentFromDailyBudget = 0; state.dailyBudget = normalize(nextBudget / daysBetween(start, finish)); state.startDate = start; } else { const oldIncome = state.transactions.find(item => item.type === 'INCOME'); if (oldIncome) oldIncome.value = nextBudget; const budgetChanged = nextBudget !== state.budget; const dateChanged = start !== state.startDate || finish !== state.finishDate; if (budgetChanged || dateChanged) { const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0); const remaining = Math.max(0, nextBudget - totalSpent); state.dailyBudget = normalize(remaining / daysLeft()); state.spentFromDailyBudget = 0; } state.startDate = start; } state.budget = nextBudget; state.finishDate = finish; state.currency = data.get('currency'); state.appliedDailyDate = today(); state.finishPeriodActualDate = null; startingNewPeriod = false; save(); sheet = null; show('Wallet saved'); render(); }
+function currencyOption(code, selected) {
+  return `<option value="${code}" ${selected === code ? 'selected' : ''}>${code}</option>`;
+}
+function currencyOptions() {
+  const selected = state.currency || 'USD';
+  return currencyOption('NONE', selected) + supportedCurrencies().map(code => currencyOption(code, selected)).join('');
+}
+
+function freshWalletSheet() {
+  const fresh = !state.budget || startingNewPeriod;
+  const backButton = `<button type="button" class="round-button" data-action="close">${icon('back')}</button>`;
+  const applyButton = '<button class="text-submit" type="submit">Apply</button>';
+  const periodLabel = fresh ? 'new period' : 'edit period';
+  const budgetValue = fresh ? '' : state.budget;
+  const startValue = fresh ? today() : state.startDate;
+  const extraActions = fresh ? '' : '<button type="button" class="sheet-row danger" data-action="finish">Finish period early</button>'
+    + `<button type="button" class="sheet-row" data-action="export">${icon('download')} Export spends to CSV</button>`;
+  return '<div class="sheet-layer"><form class="sheet" id="wallet-form">'
+    + '<span class="sheet-grip"></span>'
+    + sheetTitle('Wallet', { lead: backButton, trailing: applyButton })
+    + `<p class="section-label">${periodLabel}</p>`
+    + `<label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${budgetValue}" required></label>`
+    + '<div class="form-grid">'
+    + `<label class="field-label">Starts<input name="startDate" type="date" value="${startValue}" required></label>`
+    + `<label class="field-label">Finishes<input name="finishDate" type="date" min="${today()}" value="${state.finishDate}" required></label>`
+    + '</div>'
+    + '<div class="form-grid">'
+    + `<label class="field-label">Currency<select name="currency" class="currency-select">${currencyOptions()}</select><span class="currency-name-hint">${escapeHtml(currencyName(state.currency || 'USD'))}</span></label>`
+    + '</div>'
+    + extraActions
+    + '</form></div>';
+}
+
+function freshSaveWallet(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const nextBudget = normalize(data.get('budget'));
+  const start = data.get('startDate');
+  const finish = data.get('finishDate');
+  if (!nextBudget || finish < today() || finish < start) return;
+  const isNew = !state.budget || startingNewPeriod;
+  if (isNew) {
+    state.transactions = [{ id: uid(), type: 'INCOME', value: nextBudget, date: start, time: '00:00', comment: '' }];
+    state.spentFromDailyBudget = 0;
+    state.dailyBudget = normalize(nextBudget / daysBetween(start, finish));
+    state.startDate = start;
+  } else {
+    const oldIncome = state.transactions.find(item => item.type === 'INCOME');
+    if (oldIncome) oldIncome.value = nextBudget;
+    const budgetChanged = nextBudget !== state.budget;
+    const dateChanged = start !== state.startDate || finish !== state.finishDate;
+    if (budgetChanged || dateChanged) {
+      const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0);
+      const remaining = Math.max(0, nextBudget - totalSpent);
+      state.dailyBudget = normalize(remaining / daysLeft());
+      state.spentFromDailyBudget = 0;
+    }
+    state.startDate = start;
+  }
+  state.budget = nextBudget;
+  state.finishDate = finish;
+  state.currency = data.get('currency');
+  state.appliedDailyDate = today();
+  state.finishPeriodActualDate = null;
+  startingNewPeriod = false;
+  save();
+  sheet = null;
+  show('Wallet saved');
+  render();
+}
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.theme === 'system') render(); });
 
