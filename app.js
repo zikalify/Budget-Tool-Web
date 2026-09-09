@@ -507,13 +507,12 @@ function endDrag(event) {
   dragState = null;
   if (!moved) return;
   const progress = held.progress;
+  dragConsumedClick = true;
   if (mode === 'open' && dragShouldDismiss(progress)) {
     // Fully opened: the sheet stays, the torn-off click is swallowed.
-    dragConsumedClick = true;
     haptic(12);
     settleDrag(held);
   } else if (mode === 'open') {
-    dragConsumedClick = true;
     haptic(4);
     revertOpenDrag(held);
   } else if (dragShouldDismiss(progress)) {
@@ -525,7 +524,18 @@ function endDrag(event) {
   }
   // The torn-off click lands immediately after pointerup. If a browser ever
   // suppresses it, expire the guard so the next tap is not lost.
-  if (mode === 'open') setTimeout(() => { dragConsumedClick = false; }, 120);
+  setTimeout(() => { dragConsumedClick = false; }, 120);
+}
+
+function dismissGripTap(grip) {
+  if (pendingConfirm || !sheet) return;
+  if (sheet === 'onboarding' && !state.budget) return;
+  haptic(8);
+  const stackEl = grip.closest ? grip.closest('.sheet-stack') : null;
+  dismissSheet({
+    sheetEl: stackEl ? stackEl.querySelector('.sheet') : null,
+    backdrop: stackEl ? stackEl.querySelector('.sheet-layer') : null,
+  });
 }
 
 function settleDrag(state) {
@@ -612,7 +622,20 @@ function bind(root = document) {
     historyHandle.addEventListener('pointerdown', e => startHandleDrag(e, historyHandle));
   }
   const grip = root.querySelector('.sheet-grip');
-  if (grip) grip.addEventListener('pointerdown', e => startGripDrag(e, grip));
+  if (grip) {
+    // A plain tap on the grip lowers the pane (same animated dismissal as a
+    // pull-down swipe); a tap that was actually the end of a drag is absorbed.
+    grip.addEventListener('click', e => {
+      if (dragConsumedClick) {
+        dragConsumedClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      dismissGripTap(grip);
+    });
+    grip.addEventListener('pointerdown', e => startGripDrag(e, grip));
+  }
 
   // Sheet backdrop click to dismiss. Confirmation dialogs dismiss = cancel.
   const sheetLayers = [
