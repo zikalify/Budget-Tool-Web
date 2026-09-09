@@ -780,6 +780,20 @@ svg {
   font-weight: 600;
 }
 
+.today-chip {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+
 .spent-row {
   display: flex;
   align-items: center;
@@ -911,6 +925,19 @@ svg {
   background: var(--md-sys-color-outline);
   opacity: 0.5;
   margin: 4px auto 20px;
+}
+
+/* Sheet drag gestures: while a finger steers a sheet, the entrance animations
+   are paused and the inline transform/opacity take over, then settle back. */
+.sheet.dragging,
+.sheet-layer.dragging {
+  animation: none;
+  will-change: transform, opacity;
+}
+
+.history-handle,
+.sheet-grip {
+  touch-action: none;
 }
 
 .sheet-title {
@@ -1149,7 +1176,8 @@ svg {
   color: var(--md-sys-color-error);
 }
 
-.sheet-row.danger > svg:first-child {
+.sheet-row.danger > svg:first-child,
+.sheet-row.danger > .settings-symbol {
   background: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
 }
@@ -1412,6 +1440,66 @@ svg {
   transform: scale(0.94);
 }
 
+/* Confirmation Dialog */
+.dialog-layer {
+  z-index: 20;
+  align-items: center;
+  padding: 24px;
+}
+
+.confirm-sheet {
+  width: min(100%, 400px);
+  border-radius: 28px;
+  text-align: center;
+  padding: 8px 24px 24px;
+}
+
+.confirm-sheet h2 {
+  font-size: 20px;
+  margin: 4px 0 8px;
+}
+
+.confirm-message {
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.55;
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.confirm-actions button {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: filter 0.15s, transform 0.15s;
+}
+
+.confirm-actions button:active {
+  transform: scale(0.97);
+}
+
+.confirm-actions .confirm-neutral {
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}
+
+.confirm-actions .confirm-danger {
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+}
+
+.confirm-actions .confirm-danger:hover {
+  filter: brightness(1.08);
+}
+
 .muted {
   color: var(--md-sys-color-on-surface-variant);
 }
@@ -1442,6 +1530,21 @@ svg {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+.amount-display.amount-in {
+  animation: amount-in 0.18s var(--md-sys-motion-easing-emphasized);
+}
+
+/* Keep the wallet's number field crisp without native stepper buttons. */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 @keyframes row-in {

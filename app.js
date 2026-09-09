@@ -9,7 +9,7 @@ const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const dateValue = value => new Date(`${value}T12:00:00`);
 const dateLabel = value => new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(dateValue(value));
 const fullDate = value => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(dateValue(value));
-const money = (value, currency = state.currency || 'USD') => currency === 'NONE' ? Number(value || 0).toFixed(2) : new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value) || 0);
+const money = (value, currency = state.currency || 'USD') => currency === 'NONE' ? (Number(value) || 0).toFixed(2) : new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value) || 0);
 const daysBetween = (from, to) => Math.max(1, Math.floor((dateValue(to) - dateValue(from)) / 86400000) + 1);
 const addDays = (value, amount) => { const result = dateValue(value); result.setDate(result.getDate() + amount); return dateKey(result); };
 const defaultState = () => ({ budget: 0, dailyBudget: 0, spentFromDailyBudget: 0, appliedDailyDate: null, startDate: today(), finishDate: addDays(today(), 30), finishPeriodActualDate: null, currency: 'USD', hideOverspendingWarn: false, transactions: [], theme: 'system' });
@@ -31,6 +31,15 @@ let historySearch = '';
 let lastDeleted = null;
 let toastTimer;
 let renderedSheet = null;
+let pendingConfirm = null;
+
+// Sheet drag gestures: the history handle opens by pulling up, the sheet grip
+// dismisses by pulling down. A gesture is only tracked past a slop distance so
+// plain taps keep their normal behavior.
+let dragState = null;
+let dragConsumedClick = false;
+const DRAG_SLOP = 6;
+const DRAG_DISMISS_FRACTION = 0.35;
 
 function haptic(ms = 10) {
   try {
@@ -131,6 +140,34 @@ function createRipple(event) {
   setTimeout(() => circle.remove(), 600);
 }
 
+// Destructive actions never fire on first tap: a confirmation dialog explains
+// the consequence and waits for an explicit "Confirm" (or Escape / backdrop
+// click / Cancel). No browser confirm() popups are used.
+const CONFIRM_CONTEXTS = {
+  'new-period': {
+    title: 'Start a new period?',
+    message: 'This clears the current budget and every recorded spend before you begin a fresh one. There is no undo.',
+    confirmLabel: 'Start new',
+  },
+  'finish': {
+    title: 'Finish this period early?',
+    message: 'The period ends now and the budget with all of its spends is cleared. There is no undo.',
+    confirmLabel: 'Finish now',
+  },
+};
+function confirmDialog() {
+  const context = CONFIRM_CONTEXTS[pendingConfirm.value] || {};
+  return '<div class="sheet-layer dialog-layer" role="dialog" aria-modal="true" aria-label="Confirmation">'
+    + '<section class="sheet confirm-sheet">'
+    + `<h2>${context.title || 'Are you sure?'}</h2>`
+    + `<p class="confirm-message">${context.message || ''}</p>`
+    + '<div class="confirm-actions">'
+    + '<button type="button" class="confirm-neutral" data-action="cancel-confirm">Cancel</button>'
+    + `<button type="button" class="confirm-danger" data-action="confirm-dialog">${context.confirmLabel || 'Confirm'}</button>`
+    + '</div>'
+    + '</section></div>';
+}
+
 function render() {
   // Rendering replaces the app markup. Keep an already-open sheet still during
   // state updates (for example, deleting a spend from History) instead of
@@ -143,13 +180,14 @@ function render() {
   if (metaTheme) {
     metaTheme.setAttribute('content', effectiveTheme === 'dark' ? '#111410' : '#f7fbf2');
   }
-  document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}<div id="toast" class="toast"></div></div>`;
+  document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}${pendingConfirm ? confirmDialog() : ''}<div id="toast" class="toast"></div></div>`;
   renderedSheet = sheet;
   bind();
 }
 
 // Sheets sit above the editor. Changing one must not recreate the editor below
-// it, otherwise the balance value visibly jumps as the sheet opens.
+// it, otherwise the balance value visibly jumps as the sheet opens. A sheet and
+// an open confirmation dialog travel together inside a shared stack element.
 function renderSheet() {
   const root = document.querySelector('#app > .app-root');
   const toast = document.getElementById('toast');
@@ -157,11 +195,14 @@ function renderSheet() {
     render();
     return;
   }
-  root.querySelector('.sheet-layer')?.remove();
-  if (sheet) {
-    toast.insertAdjacentHTML('beforebegin', sheetView());
-    bind(toast.previousElementSibling);
+  root.querySelector('.sheet-stack')?.remove();
+  const stackHtml = (sheet ? sheetView() : '') + (pendingConfirm ? confirmDialog() : '');
+  if (!stackHtml) {
+    renderedSheet = sheet;
+    return;
   }
+  toast.insertAdjacentHTML('beforebegin', `<div class="sheet-stack">${stackHtml}</div>`);
+  bind(toast.previousElementSibling);
   renderedSheet = sheet;
 }
 function desktopHistory() {
@@ -187,7 +228,7 @@ function editor() {
     + '</header>'
     + '<section class="amount-area">'
     + `<span class="amount-label">${amountLabel}</span>`
-    + `<strong class="amount-display">${rawValue || '0'}</strong>`
+    + `<strong class="amount-display">${escapeHtml(rawValue) || '0'}</strong>`
     + `<span class="currency-label">${currencyLabel}</span>`
     + '</section>'
     + (mode === 'EDIT' ? dateEditor() : tagging())
@@ -208,8 +249,8 @@ function tagging() {
 function dateEditor() {
   const safeDate = editorDate > today() ? today() : editorDate;
   return '<div class="date-editor">'
-    + `<label>${icon('calendar')}<input id="edit-date" type="date" min="${state.startDate}" max="${today()}" value="${safeDate}"></label>`
-    + `<label>${icon('clock')}<input id="edit-time" type="time" value="${editorTime}"></label>`
+    + `<label>${icon('calendar')}<input id="edit-date" type="date" min="${escapeAttr(state.startDate)}" max="${escapeAttr(today())}" value="${escapeAttr(safeDate)}"></label>`
+    + `<label>${icon('clock')}<input id="edit-time" type="time" value="${escapeAttr(editorTime)}"></label>`
     + '</div><div class="tagging-wrapper"><div class="tagging">'
     + `<input id="comment" value="${escapeAttr(editorComment)}" placeholder="Add a note">`
     + `<button class="comment-done" data-action="comment-done">${icon('check')}</button>`
@@ -287,7 +328,7 @@ function history(readOnly = false) {
     </div>` : ''}
     ${Object.entries(grouped).map(([date, items]) => `
       <section class="date-group">
-        <div class="date-divider"><strong>${dateLabel(date)}</strong><span>${money(items.reduce((sum, item) => sum + Number(item.value), 0))}</span></div>
+        <div class="date-divider"><strong>${dateLabel(date)}${date === today() ? ' <i class="today-chip">today</i>' : ''}</strong><span>${money(items.reduce((sum, item) => sum + Number(item.value), 0))}</span></div>
         ${items.map(item => spentRow(item, readOnly)).join('')}
       </section>
     `).join('') || `<div class="history-empty">${query ? 'No matching spends found.' : 'Your spends will appear here.'}</div>`}
@@ -310,7 +351,7 @@ function sheetView() {
   if (sheet === 'settings') return freshSettingsSheet();
   if (sheet === 'history') {
     return '<div class="sheet-layer"><section class="sheet history-sheet"><span class="sheet-grip"></span>'
-      + sheetTitle('History', { className: 'history-sheet-title', trailing: '<button class="round-button" data-action="close" aria-label="Close history">×</button>' })
+      + sheetTitle('History', { className: 'history-sheet-title', lead: `<button class="round-button" data-action="close" aria-label="Close">${icon('back')}</button>` })
       + `${history()}</section></div>`;
   }
   if (sheet === 'analytics') return analyticsSheet();
@@ -326,7 +367,7 @@ function analyticsSheet() {
     const tag = item.comment || 'without tag';
     byTag[tag] = (byTag[tag] || 0) + Number(item.value);
   });
-  const backButton = `<button class="round-button" data-action="close">${icon('back')}</button>`;
+  const backButton = `<button class="round-button" data-action="close" aria-label="Close">${icon('back')}</button>`;
   const exportButton = `<button class="round-button" data-action="export">${icon('download')}</button>`;
   const minMax = min ? '<div class="minmax">'
     + `<article><span>minimum spend</span><strong>${money(min.value)}</strong><small>${dateLabel(min.date)}${min.comment ? ` · ${escapeHtml(min.comment)}` : ''}</small></article>`
@@ -359,7 +400,7 @@ function themeSheet() {
     { value: 'light', title: 'Light theme', detail: 'Always use light mode.' },
     { value: 'dark', title: 'Dark theme', detail: 'Always use dark mode.' },
   ];
-  const backButton = `<button class="round-button" data-action="close" aria-label="Back">${icon('back')}</button>`;
+  const backButton = `<button class="round-button" data-action="close" aria-label="Close">${icon('back')}</button>`;
   return '<div class="sheet-layer"><section class="sheet distribution-sheet">'
     + '<span class="sheet-grip"></span>'
     + sheetTitle('Theme', { lead: backButton, trailing: '<span></span>' })
@@ -371,6 +412,184 @@ function themeSheet() {
     + '</section></div>';
 }
 
+// Sheet drag gestures. Pulling the history handle upward reveals the history
+// sheet; pulling a sheet grip downward dismisses it. Progress is a pure ratio
+// of the finger travel to a tuned distance so threshold logic is testable.
+const DRAG_OPEN_DISTANCE = () => window.innerHeight * 0.45;
+const DRAG_CLOSE_DISTANCE = () => window.innerHeight * 0.3;
+const pointerY = event => event.touches && event.touches[0] ? event.touches[0].clientY : event.clientY;
+const openDragProgress = (dy, distance) => Math.max(0, Math.min(1, -dy / Math.max(1, distance)));
+const closeDragProgress = (dy, distance) => Math.max(0, Math.min(1, dy / Math.max(1, distance)));
+const dragShouldDismiss = (progress, fraction = DRAG_DISMISS_FRACTION) => progress >= fraction;
+
+function startHandleDrag(event, handle) {
+  if (dragState || sheet) return;
+  dragState = {
+    mode: 'open',
+    startY: pointerY(event),
+    moved: false,
+    progress: 0,
+    pointerId: event.pointerId,
+    handle,
+    sheetEl: null,
+    backdrop: null,
+  };
+  handle.addEventListener('pointermove', dragPointerMove);
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+  try { handle.setPointerCapture?.(event.pointerId); } catch {}
+}
+
+function startGripDrag(event, grip) {
+  if (dragState || pendingConfirm || !sheet) return;
+  if (sheet === 'onboarding' && !state.budget) return;
+  const stackEl = grip.closest ? grip.closest('.sheet-stack') : null;
+  dragState = {
+    mode: 'close',
+    startY: pointerY(event),
+    moved: false,
+    progress: 0,
+    pointerId: event.pointerId,
+    handle: grip,
+    sheetEl: stackEl ? stackEl.querySelector('.sheet') : null,
+    backdrop: stackEl ? stackEl.querySelector('.sheet-layer') : null,
+  };
+  grip.addEventListener('pointermove', dragPointerMove);
+  grip.addEventListener('pointerup', endDrag);
+  grip.addEventListener('pointercancel', endDrag);
+  try { grip.setPointerCapture?.(event.pointerId); } catch {}
+}
+
+function dragPointerMove(event) {
+  if (!dragState || dragState.pointerId !== event.pointerId) return;
+  const dy = pointerY(event) - dragState.startY;
+  if (!dragState.moved && Math.abs(dy) > DRAG_SLOP) {
+    dragState.moved = true;
+    if (dragState.mode === 'open') prepareOpenDrag();
+    frameDrag(dragState, 0);
+  }
+  if (!dragState.moved) return;
+  const distance = dragState.mode === 'open' ? DRAG_OPEN_DISTANCE() : DRAG_CLOSE_DISTANCE();
+  dragState.progress = dragState.mode === 'open'
+    ? openDragProgress(dy, distance)
+    : closeDragProgress(dy, distance);
+  frameDrag(dragState, dragState.progress);
+  event.preventDefault();
+}
+
+function prepareOpenDrag() {
+  sheet = 'history';
+  renderSheet();
+  const stackEl = document.querySelector('.sheet-stack');
+  dragState.sheetEl = stackEl ? stackEl.querySelector('.sheet') : null;
+  dragState.backdrop = stackEl ? stackEl.querySelector('.sheet-layer') : null;
+  frameDrag(dragState, 0);
+}
+
+function frameDrag(state, progress) {
+  const { sheetEl, backdrop, mode } = state;
+  if (!sheetEl || !backdrop) return;
+  sheetEl.classList.add('dragging');
+  backdrop.classList.add('dragging');
+  const delta = mode === 'open' ? 1 - progress : progress;
+  sheetEl.style.transform = `translateY(${delta * 100}%)`;
+  backdrop.style.opacity = mode === 'open' ? progress : 1 - progress * 0.85;
+}
+
+function endDrag(event) {
+  if (!dragState || dragState.pointerId !== event.pointerId) return;
+  const held = dragState;
+  const { handle, mode, moved } = held;
+  handle.removeEventListener('pointermove', dragPointerMove);
+  handle.removeEventListener('pointerup', endDrag);
+  handle.removeEventListener('pointercancel', endDrag);
+  try { handle.releasePointerCapture?.(event.pointerId); } catch {}
+  dragState = null;
+  if (!moved) return;
+  const progress = held.progress;
+  if (mode === 'open' && dragShouldDismiss(progress)) {
+    // Fully opened: the sheet stays, the torn-off click is swallowed.
+    dragConsumedClick = true;
+    haptic(12);
+    settleDrag(held);
+  } else if (mode === 'open') {
+    dragConsumedClick = true;
+    haptic(4);
+    revertOpenDrag(held);
+  } else if (dragShouldDismiss(progress)) {
+    haptic(12);
+    dismissSheet(held);
+  } else {
+    haptic(4);
+    settleDrag(held);
+  }
+  // The torn-off click lands immediately after pointerup. If a browser ever
+  // suppresses it, expire the guard so the next tap is not lost.
+  if (mode === 'open') setTimeout(() => { dragConsumedClick = false; }, 120);
+}
+
+function settleDrag(state) {
+  const { sheetEl, backdrop } = state;
+  if (!sheetEl || !backdrop) return;
+  sheetEl.classList.add('dragging');
+  backdrop.classList.add('dragging');
+  sheetEl.style.transition = 'transform 0.24s var(--md-sys-motion-easing-emphasized)';
+  backdrop.style.transition = 'opacity 0.24s ease';
+  sheetEl.style.transform = 'translateY(0)';
+  backdrop.style.opacity = '1';
+  clearDragFrame(sheetEl, backdrop, 240);
+}
+
+function revertOpenDrag(state) {
+  const { sheetEl, backdrop } = state;
+  if (sheetEl && backdrop) {
+    sheetEl.classList.add('dragging');
+    backdrop.classList.add('dragging');
+    sheetEl.style.transition = 'transform 0.24s var(--md-sys-motion-easing-emphasized)';
+    backdrop.style.transition = 'opacity 0.24s ease';
+    sheetEl.style.transform = 'translateY(100%)';
+    backdrop.style.opacity = '0';
+  }
+  sheet = null;
+  renderedSheet = null;
+  removeDragStack(240);
+}
+
+function dismissSheet(state) {
+  const { sheetEl, backdrop } = state;
+  if (sheetEl && backdrop) {
+    sheetEl.classList.add('dragging');
+    backdrop.classList.add('dragging');
+    sheetEl.style.transition = 'transform 0.22s var(--md-sys-motion-easing-emphasized)';
+    backdrop.style.transition = 'opacity 0.22s ease';
+    sheetEl.style.transform = 'translateY(100%)';
+    backdrop.style.opacity = '0';
+  }
+  sheet = null;
+  renderedSheet = null;
+  removeDragStack(220);
+}
+
+function clearDragFrame(sheetEl, backdrop, delay) {
+  // The inline transform/opacity return to resting values after the settle
+  // transition. The `.dragging` class is intentionally kept: without it the
+  // entrance animation would re-run and the sheet would visibly dip/fade.
+  setTimeout(() => {
+    for (const element of [sheetEl, backdrop]) {
+      if (!element) continue;
+      element.style.removeProperty('transition');
+      element.style.removeProperty('transform');
+      element.style.removeProperty('opacity');
+    }
+  }, delay);
+}
+
+function removeDragStack(delay) {
+  setTimeout(() => {
+    if (!sheet && !pendingConfirm) renderSheet();
+  }, delay);
+}
+
 function bind(root = document) {
   root.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('pointerdown', e => {
@@ -379,21 +598,47 @@ function bind(root = document) {
     });
   });
 
-  // Sheet backdrop click to dismiss
+  // Drag gestures. The click guard must be registered before the data-action
+  // dispatch below so a torn-off drag never also taps the button open.
+  const historyHandle = root.querySelector('.history-handle');
+  if (historyHandle) {
+    historyHandle.addEventListener('click', e => {
+      if (dragConsumedClick) {
+        dragConsumedClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+    historyHandle.addEventListener('pointerdown', e => startHandleDrag(e, historyHandle));
+  }
+  const grip = root.querySelector('.sheet-grip');
+  if (grip) grip.addEventListener('pointerdown', e => startGripDrag(e, grip));
+
+  // Sheet backdrop click to dismiss. Confirmation dialogs dismiss = cancel.
   const sheetLayers = [
     ...(root.matches?.('.sheet-layer') ? [root] : []),
     ...root.querySelectorAll('.sheet-layer'),
   ];
   sheetLayers.forEach(layer => {
     layer.addEventListener('click', e => {
-      if (e.target === layer) {
-        if (sheet !== 'onboarding' || state.budget) {
-          sheet = null;
-          renderSheet();
-        }
+      if (e.target !== layer) return;
+      if (layer.classList.contains('dialog-layer')) {
+        pendingConfirm = null;
+        renderSheet();
+        return;
+      }
+      if (sheet !== 'onboarding' || state.budget) {
+        sheet = null;
+        renderSheet();
       }
     });
   });
+
+  // Keyboard users land on the safe choice when a confirmation opens.
+  const neutralButton = root.querySelector('.confirm-neutral');
+  if (neutralButton && document.activeElement && document.activeElement.tagName !== 'BUTTON') {
+    neutralButton.focus();
+  }
 
   root.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
   root.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => key(button.dataset.key)));
@@ -451,11 +696,30 @@ function bind(root = document) {
 
 function key(value) {
   haptic(8);
-  if (value === 'backspace') rawValue = rawValue.slice(0, -1);
-  else if (value === '.' && !rawValue.includes('.')) rawValue += '.';
-  else if (value !== '.') rawValue += value;
+  let changed = true;
+  if (value === 'backspace') {
+    rawValue = rawValue.slice(0, -1);
+  } else if (value === '.' && !rawValue.includes('.')) {
+    rawValue += '.';
+  } else if (value !== '.') {
+    rawValue += value;
+  } else {
+    changed = false;
+  }
   if (rawValue.length > 12) rawValue = rawValue.slice(0, 12);
-  updateEditorPreview();
+  if (changed) {
+    updateEditorPreview();
+    // Subtle scale "pop" on entry (not on backspace) so the number feels alive.
+    if (value !== 'backspace') popAmount();
+  }
+}
+
+function popAmount() {
+  document.querySelectorAll('.amount-display').forEach(element => {
+    element.classList.remove('amount-in');
+    void element.offsetWidth;
+    element.classList.add('amount-in');
+  });
 }
 
 // Number entry is the hottest interaction in the app. Updating only the values
@@ -478,14 +742,46 @@ function updateEditorPreview() {
 
 function action(value) {
   haptic(10);
-  const sheetAction = ['settings', 'wallet', 'new-period', 'history', 'analytics', 'theme', 'close'].includes(value);
+  if (value === 'new-period') {
+    if (state.budget) {
+      pendingConfirm = { value: 'new-period' };
+      renderSheet();
+    } else {
+      startingNewPeriod = true;
+      sheet = 'onboarding';
+      render();
+    }
+    return;
+  }
+  if (value === 'finish') {
+    pendingConfirm = { value: 'finish' };
+    renderSheet();
+    return;
+  }
+  if (value === 'cancel-confirm') {
+    pendingConfirm = null;
+    renderSheet();
+    return;
+  }
+  if (value === 'confirm-dialog') {
+    const confirmed = pendingConfirm ? pendingConfirm.value : null;
+    pendingConfirm = null;
+    if (confirmed === 'new-period') {
+      startingNewPeriod = true;
+      sheet = 'onboarding';
+    } else if (confirmed === 'finish') {
+      state = defaultState();
+      save();
+      sheet = 'onboarding';
+    }
+  }
+  const sheetAction = ['settings', 'wallet', 'history', 'analytics', 'theme', 'close'].includes(value);
   if (value === 'settings') sheet = 'settings';
   if (value === 'wallet') sheet = 'wallet';
-  if (value === 'new-period') { startingNewPeriod = true; sheet = 'onboarding'; }
   if (value === 'history') sheet = 'history';
   if (value === 'analytics') sheet = 'analytics';
   if (value === 'theme') sheet = 'theme';
-  if (value === 'close') sheet = null;
+  if (value === 'close') { sheet = null; pendingConfirm = null; }
   if (sheetAction) {
     renderSheet();
     return;
@@ -494,7 +790,6 @@ function action(value) {
   if (value === 'commit') commit();
   if (value === 'undo') undoDelete();
   if (value === 'clear-search') { historySearch = ''; render(); }
-  if (value === 'finish' && confirm('Finish this period now?')) { state = defaultState(); save(); sheet = 'onboarding'; }
   if (value === 'export') exportCsv();
   if (value === 'comment-done') { document.getElementById('comment')?.blur(); }
   if (value.startsWith('set-theme:')) { state.theme = value.replace('set-theme:', ''); save(); sheet = null; show('Theme updated'); }
@@ -635,6 +930,13 @@ function undoDelete() {
   render();
 }
 
+function csvSafe(value) {
+  // Prevent spreadsheet formula injection: cells that begin with a formula
+  // operator are neutralized so they are not evaluated when the CSV is opened
+  // in a spreadsheet application.
+  const str = String(value);
+  return /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+}
 function exportCommitTime(item) {
   const timestamp = new Date(`${item.date}T${item.time || '00:00'}:00`);
   if (Number.isNaN(timestamp.getTime())) return fullDate(item.date);
@@ -646,7 +948,7 @@ function exportCsv() {
     ...spends()
       .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
       .map(item => [item.value, item.comment || '', exportCommitTime(item)]
-        .map(value => `"${String(value).replaceAll('"', '""')}"`)),
+        .map(value => `"${csvSafe(String(value)).replaceAll('"', '""')}"`)),
   ];
   const blob = new Blob([rows.map(row => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
   const link = document.createElement('a');
@@ -687,17 +989,18 @@ function sheetTitle(title, { lead = '<span></span>', trailing = '', className = 
 function sheetRowLead(symbol) {
   return ICONS[symbol] ? icon(symbol) : `<span class="settings-symbol">${symbol}</span>`;
 }
-function sheetRow({ action, symbol, title, detail, trailing = '' }) {
-  return `<button class="sheet-row" data-action="${action}">${sheetRowLead(symbol)}<span><strong>${title}</strong><small>${detail}</small></span>${trailing}</button>`;
+function sheetRow({ action, symbol, title, detail, trailing = '', danger = false }) {
+  const cls = danger ? 'sheet-row danger' : 'sheet-row';
+  return `<button class="${cls}" data-action="${action}">${sheetRowLead(symbol)}<span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></span>${trailing}</button>`;
 }
 function freshSettingsSheet() {
   const walletDetail = state.budget ? money(state.budget) : 'Set a period';
   const themeDetail = state.theme === 'system' ? 'Follow system' : state.theme === 'dark' ? 'Dark' : 'Light';
   return '<div class="sheet-layer"><section class="sheet">'
     + '<span class="sheet-grip"></span>'
-    + sheetTitle('Settings', { trailing: '<button class="round-button" data-action="close">×</button>' })
+    + sheetTitle('Settings', { lead: `<button class="round-button" data-action="close" aria-label="Close">${icon('back')}</button>` })
     + sheetRow({ action: 'wallet', symbol: 'wallet', title: 'Wallet', detail: walletDetail, trailing: icon('edit') })
-    + sheetRow({ action: 'new-period', symbol: '＋', title: 'New period', detail: 'Start with the intro and create a fresh budget' })
+    + sheetRow({ action: 'new-period', symbol: '＋', title: 'New period', detail: 'Start over with a fresh budget', danger: true })
     + sheetRow({ action: 'theme', symbol: '◐', title: 'Theme', detail: themeDetail })
     + sheetRow({ action: 'analytics', symbol: 'chart', title: 'Analytics', detail: 'See spending patterns' })
     + sheetRow({ action: 'export', symbol: 'download', title: 'Export CSV', detail: 'Save every spend' })
@@ -706,7 +1009,8 @@ function freshSettingsSheet() {
 }
 
 function currencyOption(code, selected) {
-  return `<option value="${code}" ${selected === code ? 'selected' : ''}>${code}</option>`;
+  const label = `${code} — ${currencyName(code)}`;
+  return `<option value="${escapeAttr(code)}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`;
 }
 function currencyOptions() {
   const selected = state.currency || 'USD';
@@ -715,7 +1019,7 @@ function currencyOptions() {
 
 function freshWalletSheet() {
   const fresh = !state.budget || startingNewPeriod;
-  const backButton = `<button type="button" class="round-button" data-action="close">${icon('back')}</button>`;
+  const backButton = `<button type="button" class="round-button" data-action="close" aria-label="Close">${icon('back')}</button>`;
   const applyButton = '<button class="text-submit" type="submit">Apply</button>';
   const periodLabel = fresh ? 'new period' : 'edit period';
   const budgetValue = fresh ? '' : state.budget;
@@ -726,10 +1030,10 @@ function freshWalletSheet() {
     + '<span class="sheet-grip"></span>'
     + sheetTitle('Wallet', { lead: backButton, trailing: applyButton })
     + `<p class="section-label">${periodLabel}</p>`
-    + `<label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${budgetValue}" required></label>`
+    + `<label class="field-label">Budget<input name="budget" type="number" min="0.01" step="0.01" value="${escapeAttr(budgetValue)}" required></label>`
     + '<div class="form-grid">'
-    + `<label class="field-label">Starts<input name="startDate" type="date" value="${startValue}" required></label>`
-    + `<label class="field-label">Finishes<input name="finishDate" type="date" min="${today()}" value="${state.finishDate}" required></label>`
+    + `<label class="field-label">Starts<input name="startDate" type="date" value="${escapeAttr(startValue)}" required></label>`
+    + `<label class="field-label">Finishes<input name="finishDate" type="date" min="${escapeAttr(today())}" value="${escapeAttr(state.finishDate)}" required></label>`
     + '</div>'
     + '<div class="form-grid">'
     + `<label class="field-label">Currency<select name="currency" class="currency-select">${currencyOptions()}</select><span class="currency-name-hint">${escapeHtml(currencyName(state.currency || 'USD'))}</span></label>`
@@ -784,6 +1088,11 @@ window.addEventListener('keydown', e => {
   const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
 
   if (e.key === 'Escape') {
+    if (pendingConfirm) {
+      pendingConfirm = null;
+      render();
+      return;
+    }
     if (sheet) {
       if (sheet !== 'onboarding' || state.budget) {
         sheet = null;

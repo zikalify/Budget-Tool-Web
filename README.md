@@ -26,6 +26,8 @@ It is a simple static web app designed to run on GitHub Pages. No account or bac
 
 All wallet settings and transactions are stored in `localStorage` on the current browser profile. The app does not send budget data to a server or require an account. Clearing the browser's site data removes the local wallet.
 
+Because data lives entirely in the browser, "private" and "offline" mean the data never leaves the device to a server you do not control. It is not encrypted at rest: anything with access to your browser profile or device can read it, as with any local web app. No API keys, passwords, or credentials are stored. Fonts are self-hosted, so the app makes no third-party network requests at runtime.
+
 ## Use It Locally
 
 The app is served as static files. With Python installed, run:
