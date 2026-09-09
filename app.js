@@ -38,6 +38,7 @@ let pendingConfirm = null;
 // plain taps keep their normal behavior.
 let dragState = null;
 let dragConsumedClick = false;
+let wasBackgrounded = false;
 const DRAG_SLOP = 6;
 const DRAG_DISMISS_FRACTION = 0.35;
 
@@ -1170,9 +1171,67 @@ handleHash();
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     resetGestureState();
+    wasBackgrounded = true;
   } else if (document.visibilityState === 'visible') {
     resetGestureState();
     render();
+    wasBackgrounded = false;
+  }
+});
+// iOS does not always fire `visibilitychange` when a PWA is restored after
+// backgrounding (page restored from the back/forward cache, or the app is
+// recalled directly). Rebuild bindings on those return paths too so the sheet
+// never sits with dead controls.
+window.addEventListener('focus', () => {
+  if (wasBackgrounded) {
+    resetGestureState();
+    render();
+    wasBackgrounded = false;
+  }
+});
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    resetGestureState();
+    render();
+  }
+});
+// Document-level delegation for dismissing sheets, registered once at startup
+// so it survives every re-render and rebind (iOS can return from the
+// background with per-element listeners misbehaving while the page itself is
+// still running, e.g. the wallet "Apply" submit keeps working but the pane's
+// close button stops responding). A single capture-mode listener on document
+// catches grip taps, back-arrow taps, and backdrop taps no matter what state
+// the per-element bindings are in.
+document.addEventListener('click', (event) => {
+  if (!sheet && !pendingConfirm) return;
+  const target = event.target;
+  if (!target || typeof target.closest !== 'function') return;
+  const grip = target.closest('.sheet-grip');
+  if (grip) {
+    if (dragConsumedClick) {
+      dragConsumedClick = false;
+      return;
+    }
+    if (pendingConfirm || sheet === 'onboarding' && !state.budget) return;
+    dismissGripTap(grip);
+    return;
+  }
+  const closeButton = target.closest('.sheet-stack [data-action="close"]');
+  if (closeButton) {
+    action('close');
+    return;
+  }
+  const layer = target.closest('.sheet-layer');
+  if (layer && target === layer) {
+    if (layer.classList.contains('dialog-layer')) {
+      pendingConfirm = null;
+      renderSheet();
+      return;
+    }
+    if (sheet !== 'onboarding' || state.budget) {
+      sheet = null;
+      renderSheet();
+    }
   }
 });
 setInterval(() => {

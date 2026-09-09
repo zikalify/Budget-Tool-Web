@@ -67,7 +67,11 @@ return {
   const stubs = {
     window: {
       matchMedia() { return { matches: false, addEventListener() {} }; },
-      addEventListener() {},
+      addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); },
+      _listeners: {},
+      _fire(type, event) {
+        for (const fn of this._listeners[type] || []) fn(event || {});
+      },
       location: { hash: locationHash },
     },
     document: {
@@ -76,7 +80,11 @@ return {
       querySelector() { return null; },
       querySelectorAll() { return []; },
       createRange() { return { createContextualFragment() { return { firstElementChild: makeEl() }; } }; },
-      addEventListener() {},
+      addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); },
+      _listeners: {},
+      _fire(type, event) {
+        for (const fn of this._listeners[type] || []) fn(Object.assign({ type, target: null }, event || {}));
+      },
       visibilityState: 'visible',
       currentScript: null,
     },
@@ -106,7 +114,13 @@ return {
   ];
 
   try {
-    return factory(...args);
+    const appExport = factory(...args);
+    // Expose the recorded-document stubs so tests can dispatch the listeners
+    // app.js registers on document/window (visibilitychange, focus, pageshow,
+    // and the sheet-dismissal click delegation).
+    appExport.__doc = stubs.document;
+    appExport.__win = stubs.window;
+    return appExport;
   } catch (error) {
     error.message = `LOAD ERROR: ${error.message}`;
     throw error;

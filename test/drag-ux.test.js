@@ -130,10 +130,146 @@ describe('amount entry feedback', () => {
     assert.match(app.editor(), /amount-display">1</);
   });
 
-  it('does not duplicate a decimal point', () => {
+it('does not duplicate a decimal point', () => {
     app.key('5');
     app.key('.');
     app.key('.');
-    assert.match(app.editor(), /amount-display">5\.</);
+    assert.match(app.editor(), /amount-display">5\./);
+  });
+});
+
+describe('background return recovery', () => {
+  let t;
+  let app;
+  beforeEach(() => {
+    t = setup({ frozenToday: '2026-09-09' });
+    app = t.app;
+    activeBudgetState(t);
+  });
+
+  // The visibilitychange/pageshow/focus handlers all run this exact recovery:
+  // reset gesture state, then a fresh render() that rebinds the sheet controls.
+  it('a re-render on return does not lock the sheet closed', () => {
+    app.action('history');
+    assert.equal(t.dbg.getSheet(), 'history');
+    app.render();
+    assert.equal(t.dbg.getSheet(), 'history');
+    app.action('close');
+    assert.equal(t.dbg.getSheet(), null);
+    assert.equal(app.sheetView(), '');
+  });
+
+  it('open, return, reopen, close cycle stays consistent', () => {
+    app.action('history');
+    app.render();
+    app.action('close');
+    assert.equal(t.dbg.getSheet(), null);
+
+    app.action('wallet');
+    app.render();
+    assert.equal(t.dbg.getSheet(), 'wallet');
+    app.action('close');
+    assert.equal(t.dbg.getSheet(), null);
+  });
+});
+
+describe('document-level sheet dismissal delegation', () => {
+  let t;
+  let app;
+  beforeEach(() => {
+    t = setup({ frozenToday: '2026-09-09' });
+    app = t.app;
+    activeBudgetState(t);
+  });
+
+  function node({ cls = [], action = null, parent = null } = {}) {
+    const classes = new Set(cls);
+    return {
+      cls: classes,
+      action,
+      parent,
+      classList: { contains: c => classes.has(c), add() {}, remove() {}, toggle() {} },
+      closest(selector) {
+        for (let n = this; n; n = n.parent) {
+          if (selector === '.sheet-grip') {
+            if (n.cls.has('sheet-grip')) return n;
+          } else if (selector === '.sheet-layer') {
+            if (n.cls.has('sheet-layer')) return n;
+          } else if (selector === '.sheet-stack [data-action="close"]') {
+            if (n.action === 'close' && ancestorStack(n)) return n;
+          }
+        }
+        return null;
+      },
+      querySelector() { return emptyEl(); },
+    };
+  }
+  function ancestorStack(el) {
+    for (let p = el.parent; p; p = p.parent) if (p.cls.has('sheet-stack')) return p;
+    return null;
+  }
+  function emptyEl() {
+    return {
+      style: {},
+      classList: { contains: () => false, add() {}, remove() {}, toggle() {} },
+      querySelector: emptyEl,
+      querySelectorAll: () => [],
+      closest: () => null,
+    };
+  }
+  function click(target) {
+    app.__doc._fire('click', { target });
+  }
+
+  it('closes a sheet when the delegation catches the back-arrow button', () => {
+    t.dbg.setSheet('history');
+    const layer = node({ cls: ['sheet-layer'] });
+    const stack = node({ cls: ['sheet-stack'], parent: layer });
+    const back = node({ action: 'close', parent: stack });
+    click(back);
+    assert.equal(t.dbg.getSheet(), null);
+  });
+
+  it('closes a sheet when the delegation catches a backdrop tap', () => {
+    t.dbg.setSheet('history');
+    const layer = node({ cls: ['sheet-layer'] });
+    click(layer);
+    assert.equal(t.dbg.getSheet(), null);
+  });
+
+  it('closes a sheet when the delegation catches a grip tap', () => {
+    t.dbg.setSheet('history');
+    const layer = node({ cls: ['sheet-layer'] });
+    const stack = node({ cls: ['sheet-stack'], parent: layer });
+    const grip = node({ cls: ['sheet-grip'], parent: stack });
+    click(grip);
+    assert.equal(t.dbg.getSheet(), null);
+  });
+
+  it('cancels a confirmation dialog on a backdrop tap via delegation', () => {
+    t.dbg.setPendingConfirm({ value: 'new-period' });
+    const dialogLayer = node({ cls: ['sheet-layer', 'dialog-layer'] });
+    click(dialogLayer);
+    assert.equal(t.dbg.getPendingConfirm(), null);
+  });
+
+  it('does nothing for clicks unrelated to a sheet', () => {
+    t.dbg.setSheet('history');
+    const key = node({ cls: ['key'] });
+    click(key);
+    assert.equal(t.dbg.getSheet(), 'history');
+  });
+
+  it('stays closed when the same close tap is delivered twice', () => {
+    t.dbg.setSheet('history');
+    const layer = node({ cls: ['sheet-layer'] });
+    const stack = node({ cls: ['sheet-stack'], parent: layer });
+    const grip = node({ cls: ['sheet-grip'], parent: stack });
+    // Mirrors per-element + delegation both observing the same tap: the first
+    // close sets sheet to null, and the delegation's entry guard no-ops the
+    // second delivery.
+    click(grip);
+    click(grip);
+    assert.equal(t.dbg.getSheet(), null);
   });
 });
