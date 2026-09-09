@@ -219,12 +219,16 @@ function renderSheet() {
   }
   root.querySelector('.sheet-stack')?.remove();
   const stackHtml = (sheet ? sheetView() : '') + (pendingConfirm ? confirmDialog() : '');
-  if (!stackHtml) {
-    renderedSheet = sheet;
-    return;
+  if (stackHtml) {
+    toast.insertAdjacentHTML('beforebegin', `<div class="sheet-stack">${stackHtml}</div>`);
+    bind(toast.previousElementSibling);
+  } else {
+    // A full render() (background return, rollover, theme change) leaves the open
+    // pane as a direct child of `.app-root` with no `.sheet-stack` wrapper. When
+    // nothing is open, that stray pane must be removed or it stays stuck on
+    // screen even though `sheet` is already null.
+    root.querySelector(':scope > .sheet-layer')?.remove();
   }
-  toast.insertAdjacentHTML('beforebegin', `<div class="sheet-stack">${stackHtml}</div>`);
-  bind(toast.previousElementSibling);
   renderedSheet = sheet;
 }
 function desktopHistory() {
