@@ -437,7 +437,6 @@ function startHandleDrag(event, handle) {
   handle.addEventListener('pointermove', dragPointerMove);
   handle.addEventListener('pointerup', endDrag);
   handle.addEventListener('pointercancel', endDrag);
-  try { handle.setPointerCapture?.(event.pointerId); } catch {}
 }
 
 function startGripDrag(event, grip) {
@@ -457,14 +456,19 @@ function startGripDrag(event, grip) {
   grip.addEventListener('pointermove', dragPointerMove);
   grip.addEventListener('pointerup', endDrag);
   grip.addEventListener('pointercancel', endDrag);
-  try { grip.setPointerCapture?.(event.pointerId); } catch {}
 }
 
 function dragPointerMove(event) {
   if (!dragState || dragState.pointerId !== event.pointerId) return;
   const dy = pointerY(event) - dragState.startY;
   if (!dragState.moved && Math.abs(dy) > DRAG_SLOP) {
+    // Capture only once a real drag begins. Grabbing the pointer on a plain
+    // pointerdown leaves an element capturing on iOS; if the app is sent to
+    // the background before the pointer is released, WebKit can keep that
+    // stale capture and every later tap lands on the dead element until the
+    // app is killed.
     dragState.moved = true;
+    try { dragState.handle.setPointerCapture?.(event.pointerId); } catch {}
     if (dragState.mode === 'open') prepareOpenDrag();
     frameDrag(dragState, 0);
   }
@@ -475,6 +479,14 @@ function dragPointerMove(event) {
     : closeDragProgress(dy, distance);
   frameDrag(dragState, dragState.progress);
   event.preventDefault();
+}
+
+function resetGestureState() {
+  if (dragState) {
+    try { dragState.handle?.releasePointerCapture?.(dragState.pointerId); } catch {}
+  }
+  dragState = null;
+  dragConsumedClick = false;
 }
 
 function prepareOpenDrag() {
@@ -1156,7 +1168,12 @@ function handleHash() {
 window.addEventListener('hashchange', () => { handleHash(); render(); });
 handleHash();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') render();
+  if (document.visibilityState === 'hidden') {
+    resetGestureState();
+  } else if (document.visibilityState === 'visible') {
+    resetGestureState();
+    render();
+  }
 });
 setInterval(() => {
   if (state.appliedDailyDate && state.appliedDailyDate !== today()) render();

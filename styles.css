@@ -1653,3 +1653,29 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Touch devices keep :hover applied to the last-tapped element, which leaves
+   buttons (e.g. number-pad keys) looking highlighted after a tap. On devices
+   without a hover pointer, let :hover fall back to the element's resting
+   styles; press feedback still comes from :active below. */
+@media (hover: none) {
+  .round-button:hover,
+  .budget-pill:hover,
+  .comment-done:hover,
+  .tag-list button:hover,
+  .key:hover,
+  .apply-key:hover,
+  .plain-button:hover,
+  .text-submit:hover,
+  .row-action:hover,
+  .row-action.danger:hover,
+  .primary:hover,
+  .sheet-row:hover,
+  .choice-row:hover,
+  .distribution-choice:hover,
+  .history-search-clear:hover,
+  .toast-action:hover,
+  .confirm-actions .confirm-danger:hover {
+    all: revert;
+  }
+}
