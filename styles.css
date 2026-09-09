@@ -1656,26 +1656,64 @@ input[type='number'] {
 
 /* Touch devices keep :hover applied to the last-tapped element, which leaves
    buttons (e.g. number-pad keys) looking highlighted after a tap. On devices
-   without a hover pointer, let :hover fall back to the element's resting
-   styles; press feedback still comes from :active below. */
+   without a hover pointer, pin :hover back to the element's resting styles;
+   press feedback still comes from :active below. (Must list the exact rest
+   values — `all: revert` resets to the user-agent origin, wiping the app's
+   base styling and the button's relative positioning that anchors ripples.) */
 @media (hover: none) {
-  .round-button:hover,
-  .budget-pill:hover,
-  .comment-done:hover,
-  .tag-list button:hover,
-  .key:hover,
-  .apply-key:hover,
+  .round-button:hover {
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+  .budget-pill:hover {
+    box-shadow: var(--md-elevation-1);
+  }
+  .comment-done:hover {
+    background: var(--md-sys-color-surface-container-highest);
+    color: var(--md-sys-color-on-surface-variant);
+  }
+  .tag-list button:hover {
+    background: var(--md-sys-color-surface-container);
+    color: var(--md-sys-color-on-surface-variant);
+    border-color: var(--md-sys-color-outline-variant);
+  }
+  .key:hover {
+    background: var(--md-sys-color-surface-container-highest);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  .apply-key:hover {
+    background: var(--md-sys-color-primary);
+    box-shadow: var(--md-elevation-2);
+    filter: none;
+  }
   .plain-button:hover,
-  .text-submit:hover,
-  .row-action:hover,
-  .row-action.danger:hover,
-  .primary:hover,
+  .text-submit:hover {
+    background: transparent;
+    color: var(--md-sys-color-primary);
+  }
+  .row-action:hover {
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+  .row-action.danger:hover {
+    background: transparent;
+    color: var(--md-sys-color-error);
+  }
+  .primary:hover {
+    box-shadow: var(--md-elevation-1);
+    filter: none;
+  }
   .sheet-row:hover,
   .choice-row:hover,
-  .distribution-choice:hover,
-  .history-search-clear:hover,
+  .distribution-choice:hover {
+    background: transparent;
+  }
+  .history-search-clear:hover {
+    background: transparent;
+    color: var(--md-sys-color-outline);
+  }
   .toast-action:hover,
   .confirm-actions .confirm-danger:hover {
-    all: revert;
+    filter: none;
   }
 }
