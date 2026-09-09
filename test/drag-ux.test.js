@@ -197,6 +197,8 @@ describe('document-level sheet dismissal delegation', () => {
             if (n.cls.has('sheet-layer')) return n;
           } else if (selector === '.sheet-stack [data-action="close"]') {
             if (n.action === 'close' && ancestorStack(n)) return n;
+          } else if (selector === '[data-action="close"]') {
+            if (n.action === 'close') return n;
           }
         }
         return null;

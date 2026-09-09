@@ -50,6 +50,26 @@ function haptic(ms = 10) {
   } catch {}
 }
 
+// On-screen diagnostic overlay (hold the settings gear ~0.8s to toggle). It
+// records which browser events actually reach the page so a reported "nothing
+// responds" state can be diagnosed on the device instead of by guesswork. The
+// overlay never intercepts taps (pointer-events: none) and stays off by default.
+const DIAG = { on: false, log: [] };
+function diag(kind, target) {
+  if (!DIAG.on) return;
+  const where = !target ? '' : target.tagName ? `${target.tagName}${target.classList && target.classList.value ? '.' + target.classList.value : ''}${target.dataset && target.dataset.action ? '[data-action=' + target.dataset.action + ']' : ''}` : String(target);
+  DIAG.log.push(`${new Date().toLocaleTimeString()} ${kind}${where ? ' ' + where : ''} sheet=${sheet || '·'}`);
+  if (DIAG.log.length > 40) DIAG.log.shift();
+  let box = document.getElementById('diag-box');
+  if (!box) {
+    box = document.createElement('pre');
+    box.id = 'diag-box';
+    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:rgba(0,0,0,.88);color:#9f9;font:9px/1.45 "SF Mono",Menlo,monospace;padding:6px 8px;max-height:50vh;overflow:auto;white-space:pre-wrap;pointer-events:none;margin:0;';
+    document.body.appendChild(box);
+  }
+  box.textContent = DIAG.log.join('\n');
+}
+
 function loadState() {
   try {
     return { ...defaultState(), ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') };
@@ -173,6 +193,7 @@ function render() {
   // Rendering replaces the app markup. Keep an already-open sheet still during
   // state updates (for example, deleting a spend from History) instead of
   // replaying its entrance animation.
+  diag('render');
   applyRolloverIfNeeded();
   const preserveSheetMotion = Boolean(sheet && sheet === renderedSheet);
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
@@ -619,6 +640,25 @@ function bind(root = document) {
       createRipple(e);
       haptic(10);
     });
+  });
+
+  // Hold the settings gear for ~0.8s to toggle the diagnostic overlay.
+  root.querySelectorAll('button[data-action="settings"]').forEach(btn => {
+    let holdTimer = null;
+    const clearHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
+    btn.addEventListener('pointerdown', () => {
+      if (holdTimer) return;
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        DIAG.on = !DIAG.on;
+        haptic(30);
+        if (DIAG.on) diag('diagnostics on');
+        else document.getElementById('diag-box')?.remove();
+      }, 800);
+    });
+    btn.addEventListener('pointerup', clearHold);
+    btn.addEventListener('pointercancel', clearHold);
+    btn.addEventListener('pointerleave', clearHold);
   });
 
   // Drag gestures. The click guard must be registered before the data-action
@@ -1169,6 +1209,7 @@ function handleHash() {
 window.addEventListener('hashchange', () => { handleHash(); render(); });
 handleHash();
 document.addEventListener('visibilitychange', () => {
+  diag(`visibilitychange:${document.visibilityState}`);
   if (document.visibilityState === 'hidden') {
     resetGestureState();
     wasBackgrounded = true;
@@ -1183,6 +1224,7 @@ document.addEventListener('visibilitychange', () => {
 // recalled directly). Rebuild bindings on those return paths too so the sheet
 // never sits with dead controls.
 window.addEventListener('focus', () => {
+  diag('window-focus');
   if (wasBackgrounded) {
     resetGestureState();
     render();
@@ -1190,24 +1232,33 @@ window.addEventListener('focus', () => {
   }
 });
 window.addEventListener('pageshow', (event) => {
+  diag(`pageshow:persisted=${event.persisted}`);
   if (event.persisted) {
     resetGestureState();
     render();
   }
 });
+// Page-wide event watch for the diagnostic overlay (capture phase so it runs
+// before any consumer): proves whether the page still receives input at all.
+document.addEventListener('pointerdown', (e) => diag('pointerdown', e.target), true);
+document.addEventListener('click', (e) => diag('click', e.target), true);
 // Document-level delegation for dismissing sheets, registered once at startup
 // so it survives every re-render and rebind (iOS can return from the
 // background with per-element listeners misbehaving while the page itself is
 // still running, e.g. the wallet "Apply" submit keeps working but the pane's
-// close button stops responding). A single capture-mode listener on document
+// close button stops responding). A single bubble-phase listener on document
 // catches grip taps, back-arrow taps, and backdrop taps no matter what state
-// the per-element bindings are in.
+// the per-element bindings are in. Back arrows are matched directly, not only
+// inside `.sheet-stack`, because a pane rebuilt by a full render() (as happens
+// when returning from the background) has no stack wrapper.
 document.addEventListener('click', (event) => {
   if (!sheet && !pendingConfirm) return;
   const target = event.target;
   if (!target || typeof target.closest !== 'function') return;
+  diag('delegate click', target);
   const grip = target.closest('.sheet-grip');
   if (grip) {
+    diag('delegate grip');
     if (dragConsumedClick) {
       dragConsumedClick = false;
       return;
@@ -1216,13 +1267,15 @@ document.addEventListener('click', (event) => {
     dismissGripTap(grip);
     return;
   }
-  const closeButton = target.closest('.sheet-stack [data-action="close"]');
+  const closeButton = target.closest('[data-action="close"]');
   if (closeButton) {
+    diag('delegate close', closeButton);
     action('close');
     return;
   }
   const layer = target.closest('.sheet-layer');
   if (layer && target === layer) {
+    diag('delegate backdrop');
     if (layer.classList.contains('dialog-layer')) {
       pendingConfirm = null;
       renderSheet();
