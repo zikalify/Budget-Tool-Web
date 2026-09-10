@@ -63,10 +63,18 @@
 
   font-family: 'Roboto Flex', 'Roboto', system-ui, -apple-system, sans-serif;
   color: var(--md-sys-color-on-surface);
+  /* Default used color scheme. The dark override below follows the effective
+     theme mirrored onto <html> by render(), so Android flips the status bar
+     icons to match the theme the app is actually showing. */
+  color-scheme: light;
   background: var(--md-sys-color-surface-container-low);
   letter-spacing: 0.01em;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body[data-theme="dark"] {
@@ -887,7 +895,12 @@ svg {
 /* Material 3 Bottom Sheets */
 .sheet-layer {
   position: fixed;
-  inset: 0;
+  /* Overscan 1px above the viewport: on fractional-DPR screens the compositor
+     can leave a subpixel gap between the scrim's top edge and the viewport
+     edge, which reads as a bright hairline under the status bar against the
+     dimmed pane. The sheet stays glued to the bottom (flex-end), so the extra
+     pixel shifts nothing. */
+  inset: -1px 0 0 0;
   background: rgba(0, 0, 0, 0.45);
   /* No backdrop-filter: on Chrome for Android a full-viewport fixed overlay
      with backdrop-filter can fail to composite the very top edge, leaving a
@@ -1194,6 +1207,16 @@ svg {
   font-size: 13px;
   line-height: 1.6;
   padding: 32px 0 12px;
+}
+
+.ko-fi {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 16px;
+}
+
+.ko-fi img {
+  border-radius: 6px;
 }
 
 /* Distribution / Radio Choices (Material 3 style) */

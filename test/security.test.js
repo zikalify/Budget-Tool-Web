@@ -134,9 +134,15 @@ describe('security', () => {
       assert.match(sw, /return fetch\(event\.request\)/);
     });
 
-    it('never allows the app to embed third-party scripts', () => {
+    it('never loads third-party scripts and only permits the Ko-fi logo host', () => {
       const idx = readFileSync(join(APP_DIR, 'index.html'), 'utf8');
-      assert.doesNotMatch(idx, /https:\/\//); // no external resources remain
+      // No external script element may exist (the bundled module is fine).
+      assert.doesNotMatch(idx, /<script\b[^>]*\bsrc\s*=\s*["']?https?:/i);
+      // Every external origin referenced in the document must be the exempted
+      // Ko-fi image host (none, or any other host, is a failure).
+      const external = [...idx.matchAll(/https:\/\/([^/\"';\s>]+)/g)].map(m => m[1]);
+      assert.ok(external.length > 0, 'expected a Ko-fi logo host in the CSP');
+      for (const host of external) assert.equal(host, 'storage.ko-fi.com');
     });
   });
 

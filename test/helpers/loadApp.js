@@ -76,6 +76,7 @@ return {
     },
     document: {
       body: { dataset: {} },
+      documentElement: { dataset: {} },
       getElementById() { return makeEl(); },
       querySelector() { return null; },
       querySelectorAll() { return []; },

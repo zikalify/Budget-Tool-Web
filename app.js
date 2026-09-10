@@ -218,6 +218,13 @@ function render() {
   const preserveSheetMotion = Boolean(sheet && sheet === renderedSheet);
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
   document.body.dataset.theme = effectiveTheme;
+  document.documentElement.dataset.theme = effectiveTheme;
+  // Mirror the theme onto <html> as well. The CSS `color-scheme` binding reads
+  // it there so Chrome for Android flips the status bar icons to match the
+  // theme the app is actually showing (light icons over a dark app even when
+  // the OS is light). This deliberately does NOT touch the static
+  // <meta name="theme-color"> tags: rewriting those at runtime recomposites
+  // the status bar and leaves a permanent 1px seam under it.
   // The status bar color is intentionally NOT updated at runtime. Changing
   // <meta name="theme-color"> dynamically makes Chrome for Android re-composite
   // the status bar, which leaves a permanent 1px seam under it (a bright
@@ -1222,6 +1229,7 @@ function freshSettingsSheet() {
     + sheetRow({ action: 'analytics', symbol: 'chart', title: 'Analytics', detail: 'See spending patterns' })
     + sheetRow({ action: 'export', symbol: 'download', title: 'Export CSV', detail: 'Save every spend' })
     + '<div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div>'
+    + '<div class="ko-fi"><a href="https://ko-fi.com/V7U426QKAR" target="_blank" aria-label="Support Budget Tool Web on Ko-fi"><img height="36" style="border:0;height:36px;" src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" alt="Buy Me a Coffee at ko-fi.com" /></a></div>'
     + '</section></div>';
 }
 
