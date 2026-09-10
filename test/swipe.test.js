@@ -10,31 +10,30 @@ describe('swipe down to dismiss', () => {
     app = t.app;
   });
 
-  const begin = (over) => app.__doc._fire('touchstart', Object.assign({
-    touches: [{ identifier: 1, clientX: 100, clientY: 100 }],
-    target: plainTarget(),
-  }, over || {}));
-
-  const move = (over) => app.__doc._fire('touchmove', Object.assign({
-    touches: [{ identifier: 1, clientX: 100, clientY: 130 }],
-    cancelable: true,
-    preventDefault() {},
-    target: plainTarget(),
-  }, over || {}));
-
-  // A target inside a plain (non-scrolling) sheet layer.
-  function plainTarget() {
-    const layer = { querySelector() { return null; } };
-    return {
+  // A tap target inside a sheet layer, optionally exposing a real sheet element
+  // that records styles for the finger-following assertions.
+  function paneTarget() {
+    const sheetEl = { classList: { add() {}, remove() {} }, style: {} };
+    const layer = {
+      classList: { add() {}, remove() {} },
+      style: { removeProperty() {} },
+      querySelector() { return sheetEl; },
+    };
+    const target = {
       nodeType: 1,
       parentElement: null,
       closest(sel) { return sel === '.sheet-layer' ? layer : null; },
     };
+    return { layer, sheetEl, target };
   }
 
-  // A target inside a sheet whose own scrollable content is at/off the top.
+  // A tap target inside a sheet whose own scrollable content is at/off the top.
   function scrolledTarget(scrollTop) {
-    const layer = { querySelector() { return null; } };
+    const layer = {
+      classList: { add() {}, remove() {} },
+      style: { removeProperty() {} },
+      querySelector() { return null; },
+    };
     const scrollable = { nodeType: 1, scrollHeight: 500, clientHeight: 200, scrollTop, parentElement: null };
     return {
       nodeType: 1,
@@ -43,21 +42,56 @@ describe('swipe down to dismiss', () => {
     };
   }
 
+  const begin = (over) => app.__doc._fire('touchstart', Object.assign({
+    touches: [{ identifier: 1, clientX: 100, clientY: 100 }],
+    target: null,
+  }, over || {}));
+
+  const move = (over) => app.__doc._fire('touchmove', Object.assign({
+    touches: [{ identifier: 1, clientX: 100, clientY: 130 }],
+    cancelable: true,
+    preventDefault() {},
+    target: null,
+  }, over || {}));
+
+  const finish = (over) => app.__doc._fire('touchend', Object.assign({
+    changedTouches: [{ identifier: 1, clientX: 100, clientY: 130 }],
+    target: null,
+  }, over || {}));
+
   it('a downward swipe on the pane dismisses it', () => {
     activeBudgetState(t);
     t.dbg.setSheet('settings');
     app.render();
-    begin({ target: plainTarget() });
-    move({ target: plainTarget() });
+    const { target } = paneTarget();
+    begin({ target });
+    move({ target });
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 130 }] });
     assert.equal(t.dbg.getSheet(), null);
   });
 
-  it('a short downward drag below the swipe distance does nothing', () => {
+  it('the pane sticks to the finger as it is pulled down', () => {
+    activeBudgetState(t);
+    t.dbg.setSheet('history');
+    app.render();
+    const { target, sheetEl } = paneTarget();
+    begin({ target });
+    move({ target, touches: [{ identifier: 1, clientX: 100, clientY: 130 }] });
+    assert.equal(sheetEl.style.transform, 'translateY(30px)');
+    move({ target, touches: [{ identifier: 1, clientX: 100, clientY: 160 }] });
+    assert.equal(sheetEl.style.transform, 'translateY(60px)');
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 160 }] });
+    assert.equal(t.dbg.getSheet(), null);
+  });
+
+  it('a gentle short drag springs back instead of dismissing', () => {
     activeBudgetState(t);
     t.dbg.setSheet('settings');
     app.render();
-    begin({ target: plainTarget() });
-    move({ target: plainTarget(), touches: [{ identifier: 1, clientX: 100, clientY: 110 }] });
+    const { target } = paneTarget();
+    begin({ target });
+    move({ target, touches: [{ identifier: 1, clientX: 100, clientY: 110 }] });
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 110 }] });
     assert.equal(t.dbg.getSheet(), 'settings');
   });
 
@@ -65,8 +99,10 @@ describe('swipe down to dismiss', () => {
     activeBudgetState(t);
     t.dbg.setSheet('history');
     app.render();
-    begin({ target: plainTarget() });
-    move({ target: plainTarget(), touches: [{ identifier: 1, clientX: 100, clientY: 60 }] });
+    const { target } = paneTarget();
+    begin({ target });
+    move({ target, touches: [{ identifier: 1, clientX: 100, clientY: 60 }] });
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 60 }] });
     assert.equal(t.dbg.getSheet(), 'history');
   });
 
@@ -74,24 +110,27 @@ describe('swipe down to dismiss', () => {
     activeBudgetState(t);
     t.dbg.setSheet('history');
     app.render();
-    const target = scrolledTarget(20);
-    begin({ target });
-    move({ target });
+    const scrolled = scrolledTarget(20);
+    begin({ target: scrolled });
+    move({ target: scrolled });
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 130 }] });
     assert.equal(t.dbg.getSheet(), 'history');
     const atTop = scrolledTarget(0);
     begin({ target: atTop });
     move({ target: atTop });
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 130 }] });
     assert.equal(t.dbg.getSheet(), null);
   });
 
-  it('cancels the native overscroll when dismissing', () => {
+  it('cancels the native overscroll when dragging the pane down', () => {
     activeBudgetState(t);
     t.dbg.setSheet('settings');
     app.render();
     let cancelled = false;
-    begin({ target: plainTarget() });
+    const { target } = paneTarget();
+    begin({ target });
     move({
-      target: plainTarget(),
+      target,
       cancelable: true,
       preventDefault() { cancelled = true; },
     });
@@ -102,8 +141,10 @@ describe('swipe down to dismiss', () => {
     t.setState({ budget: 0, startDate: app.today(), finishDate: app.addDays(app.today(), 9), currency: 'USD', transactions: [] });
     app.render();
     assert.equal(t.dbg.getSheet(), 'onboarding');
-    begin({ target: plainTarget() });
-    move({ target: plainTarget() });
+    const { target } = paneTarget();
+    begin({ target });
+    move({ target });
+    finish({ changedTouches: [{ identifier: 1, clientX: 100, clientY: 130 }] });
     assert.equal(t.dbg.getSheet(), 'onboarding');
   });
 });

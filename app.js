@@ -601,14 +601,17 @@ function dismissGripTap(grip) {
   });
 }
 
-// Swipe-down-to-dismiss. With a pane open, a quick downward swipe anywhere on
-// the pane (or its dimmed backdrop) hides it — but only while the pane's own
-// scroll is at the top, so a downward swipe over scrolled content scrolls up
-// instead. Touch-event driven on purpose: Chrome Android owns a downward
-// overscroll pan and fires `pointercancel`, but the legacy touch stream keeps
-// flowing, which lets us both read the gesture and cancel the rubber-band.
-// Upward and horizontal swipes are always left to native handling.
+// Swipe-down-to-dismiss that sticks to the finger. With a pane open, pulling
+// down anywhere on the pane (or its dimmed backdrop) drags the pane along with
+// the finger; letting go past a threshold — or with an unmistakable downward
+// fling — slides it away, otherwise it springs back. The pane's own scroll
+// always wins: a pull that starts below the top-of-scroll, or an upward pull,
+// is handed to native scrolling untouched. Touch-event driven on purpose:
+// Chrome Android owns a downward overscroll pan and fires `pointercancel`, but
+// the legacy touch stream keeps flowing, so we can both read the gesture and
+// cancel the rubber-band.
 const SWIPE_DOWN_DISTANCE = 14;
+const SWIPE_FLING_VELOCITY = 0.7;
 let swipeDown = null;
 
 function scrollAtTopFrom(target, layer) {
@@ -620,25 +623,53 @@ function scrollAtTopFrom(target, layer) {
   return true;
 }
 
-function triggerSwipeDismiss(layer) {
-  diag('swipe dismiss');
-  haptic(8);
-  dismissSheet({
-    sheetEl: layer.querySelector ? layer.querySelector('.sheet') : null,
-    backdrop: layer,
-  });
+function dragPaneTo(held, dy) {
+  const { sheetEl, backdrop } = held;
+  if (!sheetEl || !backdrop) return;
+  sheetEl.classList.add('dragging');
+  backdrop.classList.add('dragging');
+  sheetEl.style.transition = 'none';
+  backdrop.style.transition = 'none';
+  const pull = dy > 220 ? 220 + (dy - 220) * 0.55 : dy;
+  sheetEl.style.transform = `translateY(${Math.round(pull)}px)`;
+  backdrop.style.opacity = String(Math.max(0, Math.min(1, 1 - (dy / Math.max(1, DRAG_CLOSE_DISTANCE())) * 0.85)));
+}
+
+function endSwipeDown(held, finalY, at) {
+  const dy = finalY - held.startY;
+  const elapsed = Math.max(1, at - held.startT);
+  const velocity = dy / elapsed;
+  const progress = closeDragProgress(dy, DRAG_CLOSE_DISTANCE());
+  if (dragShouldDismiss(progress) || (dy >= SWIPE_DOWN_DISTANCE && velocity > SWIPE_FLING_VELOCITY)) {
+    haptic(12);
+    dismissSheet(held);
+  } else {
+    haptic(4);
+    settleDrag(held);
+  }
 }
 
 document.addEventListener('touchstart', event => {
-  if (dragState || pendingConfirm || !sheet) return;
+  if (dragState || pendingConfirm || !sheet || swipeDown) return;
   if (sheet === 'onboarding' && !state.budget) return;
   const first = event.touches && event.touches[0];
   const target = event.target;
   if (!first || !target || typeof target.closest !== 'function') return;
   if (target.closest('.sheet-grip')) return;
   if (target.closest('input, select, textarea')) return;
-  if (!target.closest('.sheet-layer')) return;
-  swipeDown = { id: first.identifier, startX: first.clientX, startY: first.clientY, layer: target.closest('.sheet-layer') };
+  const layer = target.closest('.sheet-layer');
+  if (!layer) return;
+  swipeDown = {
+    id: first.identifier,
+    startX: first.clientX,
+    startY: first.clientY,
+    startT: Date.now(),
+    active: false,
+    progress: 0,
+    layer,
+    sheetEl: null,
+    backdrop: null,
+  };
 }, { passive: true });
 
 document.addEventListener('touchmove', event => {
@@ -647,18 +678,40 @@ document.addEventListener('touchmove', event => {
   if (!first || first.identifier !== swipeDown.id) { swipeDown = null; return; }
   const dy = first.clientY - swipeDown.startY;
   const dx = first.clientX - swipeDown.startX;
-  if (Math.abs(dy) < DRAG_SLOP && Math.abs(dx) < DRAG_SLOP) return;
-  const { layer } = swipeDown;
-  swipeDown = null;
-  if (dy < 0) return;
-  if (Math.abs(dx) > dy || dy < SWIPE_DOWN_DISTANCE) return;
-  if (!scrollAtTopFrom(event.target, layer)) return;
-  if (event.cancelable) event.preventDefault();
-  triggerSwipeDismiss(layer);
+  if (!swipeDown.active) {
+    if (Math.abs(dy) < DRAG_SLOP && Math.abs(dx) < DRAG_SLOP) return;
+    if (dy < 0 || Math.abs(dx) > dy) { swipeDown = null; return; }
+    if (!scrollAtTopFrom(event.target, swipeDown.layer)) { swipeDown = null; return; }
+    swipeDown.active = true;
+    swipeDown.sheetEl = swipeDown.layer.querySelector ? swipeDown.layer.querySelector('.sheet') : null;
+    swipeDown.backdrop = swipeDown.layer;
+    if (event.cancelable) event.preventDefault();
+    diag('swipe drag');
+  } else {
+    if (event.cancelable) event.preventDefault();
+  }
+  if (!swipeDown) return;
+  swipeDown.progress = closeDragProgress(dy, DRAG_CLOSE_DISTANCE());
+  dragPaneTo(swipeDown, dy);
 }, { passive: false });
 
-document.addEventListener('touchend', () => { swipeDown = null; });
-document.addEventListener('touchcancel', () => { swipeDown = null; });
+document.addEventListener('touchend', event => {
+  if (!swipeDown) return;
+  const first = event.changedTouches && event.changedTouches[0];
+  if (!first || first.identifier !== swipeDown.id) return;
+  const held = swipeDown;
+  swipeDown = null;
+  if (held.active) endSwipeDown(held, first.clientY, Date.now());
+}, { passive: true });
+
+document.addEventListener('touchcancel', event => {
+  if (!swipeDown) return;
+  const first = event.changedTouches && event.changedTouches[0];
+  if (!first || first.identifier !== swipeDown.id) return;
+  const held = swipeDown;
+  swipeDown = null;
+  if (held.active) settleDrag(held);
+}, { passive: true });
 
 function settleDrag(state) {
   const { sheetEl, backdrop } = state;
