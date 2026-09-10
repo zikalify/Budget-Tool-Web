@@ -198,13 +198,12 @@ function render() {
   const preserveSheetMotion = Boolean(sheet && sheet === renderedSheet);
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
   document.body.dataset.theme = effectiveTheme;
-  const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) {
-    // Match the status bar exactly to the color drawn at the top edge of the
-    // canvas (--md-sys-color-surface-container-low) so there is no visible
-    // seam line between the Android status bar and the app content.
-    metaTheme.setAttribute('content', effectiveTheme === 'dark' ? '#191c18' : '#f1f5ec');
-  }
+  // The status bar color is intentionally NOT updated at runtime. Changing
+  // <meta name="theme-color"> dynamically makes Chrome for Android re-composite
+  // the status bar, which leaves a permanent 1px seam under it (a bright
+  // hairline against a dimmed open pane in light mode) that only a full reload
+  // clears. The static media-query <meta> tags in index.html paint it once, so
+  // in-app theme toggles never repaint the status bar.
   document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}${pendingConfirm ? confirmDialog() : ''}<div id="toast" class="toast"></div></div>`;
   renderedSheet = sheet;
   bind();
