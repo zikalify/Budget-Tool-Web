@@ -1130,9 +1130,8 @@ function remove(id) {
   accountRemove(item);
   state.transactions = state.transactions.filter(entry => entry.id !== id);
   save();
+  render();
   show('Spend deleted', true);
-  refreshHistoryViews();
-  updateEditorPreview();
 }
 
 function undoDelete() {
@@ -1142,8 +1141,8 @@ function undoDelete() {
   save();
   const restored = lastDeleted;
   lastDeleted = null;
-  show('Spend restored');
   render();
+  show('Spend restored');
 }
 
 function csvSafe(value) {
