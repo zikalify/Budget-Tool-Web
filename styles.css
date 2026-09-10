@@ -1742,3 +1742,28 @@ input[type='number'] {
     filter: none;
   }
 }
+
+/* Edge-to-edge installed PWA. When the app is installed the status bar turns
+   translucent and floats over the top of the page, so the shell must paint
+   behind the icons while no element sits under them. Sliding the whole shell
+   down by the icon strip (safe-area) and shrinking it by the same amount keeps
+   everything below the icons and exactly fills the rest. The toolbar stops
+   adding its own safe-area padding here — the shell already consumed it; on
+   desktop the inner card track is reduced identically. In a browser tab
+   env(safe-area-inset-top) is 0, so both rules are a no-op. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .clone-shell {
+    margin-top: env(safe-area-inset-top);
+    height: calc(100dvh - env(safe-area-inset-top));
+  }
+
+  .editor-toolbar {
+    padding-top: 14px;
+  }
+
+  @media (min-width: 781px) {
+    .editor-page {
+      height: calc(100dvh - 40px - env(safe-area-inset-top));
+    }
+  }
+}

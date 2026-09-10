@@ -1,4 +1,4 @@
-const CACHE = 'budget-tool-web-v94';
+const CACHE = 'budget-tool-web-v95';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/money-bags.svg', './fonts/fonts.css', './fonts/roboto-variable.woff2', './fonts/roboto-variable-ext.woff2', './fonts/roboto-flex-variable.woff2', './fonts/roboto-flex-variable-ext.woff2'];
 
 self.addEventListener('install', event => {
