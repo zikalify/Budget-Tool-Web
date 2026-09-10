@@ -907,8 +907,9 @@ svg {
   border-radius: 28px 28px 0 0;
   padding: 16px 24px 36px;
   box-shadow: var(--md-elevation-4);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-bottom: 0;
+  /* No 1px border: near the status bar the top edge line reads as a bright
+     hairline against the dimmed backdrop in light mode. The elevation shadow
+     already separates the sheet from the scrim behind it. */
   animation: sheet-in 0.35s var(--md-sys-motion-easing-emphasized) both;
 }
 
