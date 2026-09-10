@@ -536,6 +536,7 @@ function resetGestureState() {
     try { dragState.handle?.releasePointerCapture?.(dragState.pointerId); } catch {}
   }
   dragState = null;
+  swipeDown = null;
   dragConsumedClick = false;
 }
 
@@ -599,6 +600,65 @@ function dismissGripTap(grip) {
     backdrop: stackEl ? stackEl.querySelector('.sheet-layer') : null,
   });
 }
+
+// Swipe-down-to-dismiss. With a pane open, a quick downward swipe anywhere on
+// the pane (or its dimmed backdrop) hides it — but only while the pane's own
+// scroll is at the top, so a downward swipe over scrolled content scrolls up
+// instead. Touch-event driven on purpose: Chrome Android owns a downward
+// overscroll pan and fires `pointercancel`, but the legacy touch stream keeps
+// flowing, which lets us both read the gesture and cancel the rubber-band.
+// Upward and horizontal swipes are always left to native handling.
+const SWIPE_DOWN_DISTANCE = 14;
+let swipeDown = null;
+
+function scrollAtTopFrom(target, layer) {
+  let el = target && target.nodeType === 1 ? target : null;
+  while (el && el !== layer) {
+    if (el.scrollHeight > el.clientHeight + 1) return el.scrollTop <= 1;
+    el = el.parentElement;
+  }
+  return true;
+}
+
+function triggerSwipeDismiss(layer) {
+  diag('swipe dismiss');
+  haptic(8);
+  dismissSheet({
+    sheetEl: layer.querySelector ? layer.querySelector('.sheet') : null,
+    backdrop: layer,
+  });
+}
+
+document.addEventListener('touchstart', event => {
+  if (dragState || pendingConfirm || !sheet) return;
+  if (sheet === 'onboarding' && !state.budget) return;
+  const first = event.touches && event.touches[0];
+  const target = event.target;
+  if (!first || !target || typeof target.closest !== 'function') return;
+  if (target.closest('.sheet-grip')) return;
+  if (target.closest('input, select, textarea')) return;
+  if (!target.closest('.sheet-layer')) return;
+  swipeDown = { id: first.identifier, startX: first.clientX, startY: first.clientY, layer: target.closest('.sheet-layer') };
+}, { passive: true });
+
+document.addEventListener('touchmove', event => {
+  if (!swipeDown) return;
+  const first = event.touches && event.touches[0];
+  if (!first || first.identifier !== swipeDown.id) { swipeDown = null; return; }
+  const dy = first.clientY - swipeDown.startY;
+  const dx = first.clientX - swipeDown.startX;
+  if (Math.abs(dy) < DRAG_SLOP && Math.abs(dx) < DRAG_SLOP) return;
+  const { layer } = swipeDown;
+  swipeDown = null;
+  if (dy < 0) return;
+  if (Math.abs(dx) > dy || dy < SWIPE_DOWN_DISTANCE) return;
+  if (!scrollAtTopFrom(event.target, layer)) return;
+  if (event.cancelable) event.preventDefault();
+  triggerSwipeDismiss(layer);
+}, { passive: false });
+
+document.addEventListener('touchend', () => { swipeDown = null; });
+document.addEventListener('touchcancel', () => { swipeDown = null; });
 
 function settleDrag(state) {
   const { sheetEl, backdrop } = state;
