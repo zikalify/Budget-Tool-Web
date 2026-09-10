@@ -94,8 +94,9 @@ describe('wallet', () => {
       assert.equal(s.transactions.find(x => x.type === 'INCOME').value, 180);
       // save() re-derives the daily counter from today's spends (20 today)
       assert.equal(s.spentFromDailyBudget, 20);
-      // dailyBudget = remaining(160)/daysLeft
-      assert.equal(s.dailyBudget, app.normalize(160 / app.daysLeft()));
+      // dailyBudget excludes today's spend (double-subtraction fix): the "left
+      // today" figure subtracts it again, so the pool is (180, not 160)/daysLeft
+      assert.equal(s.dailyBudget, app.normalize(180 / app.daysBetween(app.today(), '2026-09-30')));
     });
 
     it('updates startDate when dates change', () => {
@@ -130,6 +131,42 @@ describe('wallet', () => {
       }));
       assert.equal(s.transactions.length, 2);
       assert.ok(s.transactions.some(x => x.id === 'a'));
+    });
+
+    it('raising the total mid-day never shrinks "left today"', () => {
+      // Period 8/20..9/28 (20 days left incl today), consistent 10/day past
+      // spending, 2.00 spent today → "left today" shows 8.00.
+      const s = t.setState({
+        budget: 300,
+        dailyBudget: 10,
+        startDate: '2026-08-20',
+        finishDate: '2026-09-28',
+        currency: 'USD',
+        appliedDailyDate: app.today(),
+        spentFromDailyBudget: 2,
+        transactions: [
+          { id: 'i', type: 'INCOME', value: 300, date: '2026-08-20', time: '00:00', comment: '' },
+          ...Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, type: 'SPENT', value: 10, date: '2026-08-20', time: `${String(i + 9).padStart(2, '0')}:00`, comment: '' })),
+          { id: 't', type: 'SPENT', value: 2, date: app.today(), time: '10:00', comment: '' },
+        ],
+      });
+      const before = app.restToday();
+      assert.equal(before, 8);
+
+      // Increase smaller than today's spend: before the fix this dropped the
+      // allowance because today's spend was subtracted from the pool twice.
+      app.freshSaveWallet(form({
+        budget: '301', startDate: '2026-08-20', finishDate: '2026-09-28', currency: 'USD',
+      }));
+      const raised = app.restToday();
+      assert.ok(raised > before, `raising budget should not shrink left today (${before} -> ${raised})`);
+      assert.equal(s.dailyBudget, app.normalize(301 - 100) / app.daysBetween(app.today(), '2026-09-28'));
+
+      // Restoring the original total restores the exact original allowance.
+      app.freshSaveWallet(form({
+        budget: '300', startDate: '2026-08-20', finishDate: '2026-09-28', currency: 'USD',
+      }));
+      assert.equal(app.restToday(), before);
     });
   });
 

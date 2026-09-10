@@ -63,7 +63,7 @@
 
   font-family: 'Roboto Flex', 'Roboto', system-ui, -apple-system, sans-serif;
   color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-low);
   letter-spacing: 0.01em;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
@@ -120,7 +120,7 @@ body[data-theme="dark"] {
   --good: #9cd67d;
   --bad: #ffb4ab;
   --warn: #ffba28;
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-low);
 }
 
 * {
@@ -131,7 +131,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   margin: 0;
-  background: var(--md-sys-color-surface);
+  background: var(--md-sys-color-surface-container-low);
   font-family: inherit;
   color: var(--md-sys-color-on-surface);
 }

@@ -1143,9 +1143,16 @@ function freshSaveWallet(event) {
     const budgetChanged = nextBudget !== state.budget;
     const dateChanged = start !== state.startDate || finish !== state.finishDate;
     if (budgetChanged || dateChanged) {
+      // Redistribute over the remaining days. Today's own spend stays out of the
+      // pool because the "left today" figure subtracts it again — keeping it in
+      // would shrink today's allowance whenever the change is smaller than what
+      // has already been spent today (double-subtraction). This mirrors
+      // redistributeDailyBudget(), which adds todaySpent() back for the same reason.
       const totalSpent = spends().reduce((total, item) => total + Number(item.value), 0);
-      const remaining = Math.max(0, nextBudget - totalSpent);
-      state.dailyBudget = normalize(remaining / daysLeft());
+      const spentToday = todaySpent();
+      const remaining = Math.max(0, nextBudget - (totalSpent - spentToday));
+      const days = Math.max(1, daysBetween(today(), finish));
+      state.dailyBudget = normalize(remaining / days);
       state.spentFromDailyBudget = 0;
     }
     state.startDate = start;
