@@ -200,7 +200,10 @@ function render() {
   document.body.dataset.theme = effectiveTheme;
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
-    metaTheme.setAttribute('content', effectiveTheme === 'dark' ? '#111410' : '#f7fbf2');
+    // Match the status bar exactly to the color drawn at the top edge of the
+    // canvas (--md-sys-color-surface-container-low) so there is no visible
+    // seam line between the Android status bar and the app content.
+    metaTheme.setAttribute('content', effectiveTheme === 'dark' ? '#191c18' : '#f1f5ec');
   }
   document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}${pendingConfirm ? confirmDialog() : ''}<div id="toast" class="toast"></div></div>`;
   renderedSheet = sheet;

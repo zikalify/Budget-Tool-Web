@@ -889,8 +889,9 @@ svg {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  /* No backdrop-filter: on Chrome for Android a full-viewport fixed overlay
+     with backdrop-filter can fail to composite the very top edge, leaving a
+     thin undimmed stripe under the status bar (visible in light mode). */
   z-index: 10;
   display: flex;
   align-items: flex-end;
