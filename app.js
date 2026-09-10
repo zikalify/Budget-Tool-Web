@@ -218,19 +218,11 @@ function render() {
   const preserveSheetMotion = Boolean(sheet && sheet === renderedSheet);
   const effectiveTheme = state.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : state.theme;
   document.body.dataset.theme = effectiveTheme;
-  document.documentElement.dataset.theme = effectiveTheme;
-  // Mirror the theme onto <html> as well. The CSS `color-scheme` binding reads
-  // it there so Chrome for Android flips the status bar icons to match the
-  // theme the app is actually showing (light icons over a dark app even when
-  // the OS is light). This deliberately does NOT touch the static
-  // <meta name="theme-color"> tags: rewriting those at runtime recomposites
-  // the status bar and leaves a permanent 1px seam under it.
-  // The status bar color is intentionally NOT updated at runtime. Changing
-  // <meta name="theme-color"> dynamically makes Chrome for Android re-composite
-  // the status bar, which leaves a permanent 1px seam under it (a bright
-  // hairline against a dimmed open pane in light mode) that only a full reload
-  // clears. The static media-query <meta> tags in index.html paint it once, so
-  // in-app theme toggles never repaint the status bar.
+  // The status bar is intentionally left alone: the app declares no
+  // <meta name="theme-color"> and no manifest `theme_color`, so Chrome for
+  // Android owns it entirely and renders whatever it considers normal. Rewriting
+  // theme-color at runtime also made Chrome re-composite the bar and left a
+  // permanent 1px seam under it, so that path is avoided completely.
   if (sheet && renderedSheet !== sheet) pushBackBarrier();
   document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}${pendingConfirm ? confirmDialog() : ''}<div id="toast" class="toast"></div></div>`;
   renderedSheet = sheet;

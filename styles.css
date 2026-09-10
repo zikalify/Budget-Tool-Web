@@ -63,18 +63,10 @@
 
   font-family: 'Roboto Flex', 'Roboto', system-ui, -apple-system, sans-serif;
   color: var(--md-sys-color-on-surface);
-  /* Default used color scheme. The dark override below follows the effective
-     theme mirrored onto <html> by render(), so Android flips the status bar
-     icons to match the theme the app is actually showing. */
-  color-scheme: light;
   background: var(--md-sys-color-surface-container-low);
   letter-spacing: 0.01em;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-}
-
-html[data-theme="dark"] {
-  color-scheme: dark;
 }
 
 body[data-theme="dark"] {

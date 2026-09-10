@@ -13,9 +13,17 @@ describe('installed shell (status bar)', () => {
     assert.equal(manifest.display, 'standalone');
   });
 
-  it('matches the app canvas tone so an opaque status bar blends in', () => {
+  it('never declares a status bar color so Chrome renders its normal bar', () => {
     const manifest = JSON.parse(readFileSync(join(APP_DIR, 'manifest.webmanifest'), 'utf8'));
-    assert.equal(manifest.theme_color, '#f1f5ec');
+    assert.equal(manifest.theme_color, undefined);
+    const idx = readFileSync(join(APP_DIR, 'index.html'), 'utf8');
+    assert.doesNotMatch(idx, /name="theme-color"/);
+    const css = readFileSync(join(APP_DIR, 'styles.css'), 'utf8');
+    assert.doesNotMatch(css, /color-scheme\s*:/);
+  });
+
+  it('still themes the splash screen with the app canvas tone', () => {
+    const manifest = JSON.parse(readFileSync(join(APP_DIR, 'manifest.webmanifest'), 'utf8'));
     assert.equal(manifest.background_color, '#f1f5ec');
   });
 
