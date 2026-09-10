@@ -33,6 +33,26 @@ let toastTimer;
 let renderedSheet = null;
 let pendingConfirm = null;
 
+// Android's system back button fires `popstate`, not Escape. Push a history
+// barrier the moment a pane (or confirmation dialog) opens so the first back
+// closes the pane instead of quitting the app; the browser pops our entry, we
+// swallow the navigation, and the page stays put. Open/close transitions are
+// detected by comparing `renderedSheet`, so re-rendering an already-open pane
+// (background return, rollover) never pushes an extra barrier. Tolerates hosts
+// without the History API (tests, quirky WebViews).
+function pushBackBarrier() {
+  if (window.history && window.history.pushState) {
+    try { window.history.pushState({ back: true }, ''); } catch {}
+  }
+}
+function clearBackHash() {
+  try {
+    if (window.history && window.history.replaceState && window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  } catch {}
+}
+
 // Sheet drag gestures: the history handle opens by pulling up, the sheet grip
 // dismisses by pulling down. A gesture is only tracked past a slop distance so
 // plain taps keep their normal behavior.
@@ -204,6 +224,7 @@ function render() {
   // hairline against a dimmed open pane in light mode) that only a full reload
   // clears. The static media-query <meta> tags in index.html paint it once, so
   // in-app theme toggles never repaint the status bar.
+  if (sheet && renderedSheet !== sheet) pushBackBarrier();
   document.getElementById('app').innerHTML = `<div class="app-root${preserveSheetMotion ? ' preserve-motion' : ''}"><div class="clone-shell">${desktopHistory()}<main class="editor-page">${editor()}${keyboard()}</main></div>${sheet ? sheetView() : ''}${pendingConfirm ? confirmDialog() : ''}<div id="toast" class="toast"></div></div>`;
   renderedSheet = sheet;
   bind();
@@ -219,6 +240,7 @@ function renderSheet() {
     render();
     return;
   }
+  if ((sheet || pendingConfirm) && !renderedSheet) pushBackBarrier();
   root.querySelector('.sheet-stack')?.remove();
   const stackHtml = (sheet ? sheetView() : '') + (pendingConfirm ? confirmDialog() : '');
   if (stackHtml) {
@@ -1172,6 +1194,28 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.theme === 'system') render(); });
 
 // Global physical keyboard support & Escape to dismiss
+window.addEventListener('popstate', () => {
+  // Android system back → popstate. Close the topmost layer instead of letting
+  // the browser leave the app.
+  diag('popstate');
+  if (pendingConfirm) {
+    pendingConfirm = null;
+    renderSheet();
+    pushBackBarrier();
+    return;
+  }
+  if (sheet) {
+    if (sheet === 'onboarding' && !state.budget) {
+      pushBackBarrier();
+      return;
+    }
+    sheet = null;
+    renderSheet();
+    suppressHashReopen = true;
+    clearBackHash();
+    return;
+  }
+});
 window.addEventListener('keydown', e => {
   const activeEl = document.activeElement;
   const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
@@ -1211,8 +1255,10 @@ window.addEventListener('keydown', e => {
 });
 
 // App Shortcut Hash Handling
+let suppressHashReopen = false;
 function handleHash() {
   const hash = window.location.hash;
+  if (suppressHashReopen) { suppressHashReopen = false; return; }
   if (hash === '#history') {
     sheet = 'history';
   } else if (hash === '#analytics') {
