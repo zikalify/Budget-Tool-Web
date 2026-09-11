@@ -181,6 +181,139 @@ describe('remove after day rollover restores dailyBudget', () => {
   });
 });
 
+describe('exact user scenario: 5192 PHP, Sep 7–Oct 10', () => {
+  it('clean scenario gives correct 102.47 on Sep 10 after adding 130', () => {
+    const t = setup({ frozenToday: '2026-09-10' });
+    const app = t.app;
+    const s = activeBudgetState(t);
+
+    s.budget = 5192;
+    s.startDate = '2026-09-07';
+    s.finishDate = '2026-10-10';
+    s.transactions = [
+      { id: 'income', type: 'INCOME', value: 5192, date: '2026-09-07', time: '00:00', comment: '' },
+      { id: 's1', type: 'SPENT', value: 1464, date: '2026-09-07', time: '10:00', comment: '' },
+      { id: 's2', type: 'SPENT', value: 199, date: '2026-09-08', time: '10:00', comment: '' },
+      { id: 's3', type: 'SPENT', value: 325, date: '2026-09-09', time: '10:00', comment: '' },
+      { id: 's4', type: 'SPENT', value: 130, date: '2026-09-10', time: '10:00', comment: '' },
+    ];
+    s.appliedDailyDate = '2026-09-09';
+
+    assert.equal(app.totalSpent(), 2118);
+
+    app.redistributeDailyBudget();
+
+    // remainingBudget = 5192 - 2118 = 3074, todaySpent = 130, daysLeft = 31
+    // dailyBudget = (3074 + 130) / 31 = 103.35
+    assert.equal(s.dailyBudget, app.normalize(3204 / 31));
+    assert.equal(s.spentFromDailyBudget, 130);
+
+    const pill = app.pillDisplay();
+    assert.equal(pill.isOverdraft, true);
+    // overdraft: newDailyBudget = 3074 / 30 = 102.47
+    assert.equal(pill.value, app.money(app.normalize(3074 / 30)));
+  });
+
+  it('old spends from a prior period reduce dailyBudget (the 82.11 bug)', () => {
+    const t = setup({ frozenToday: '2026-09-10' });
+    const app = t.app;
+    const s = activeBudgetState(t);
+
+    s.budget = 5192;
+    s.startDate = '2026-09-07';
+    s.finishDate = '2026-10-10';
+    s.transactions = [
+      { id: 'income', type: 'INCOME', value: 5192, date: '2026-09-07', time: '00:00', comment: '' },
+      { id: 'old1', type: 'SPENT', value: 300, date: '2026-09-01', time: '10:00', comment: 'stale' },
+      { id: 'old2', type: 'SPENT', value: 358, date: '2026-09-03', time: '10:00', comment: 'stale' },
+      { id: 's1', type: 'SPENT', value: 1464, date: '2026-09-07', time: '10:00', comment: '' },
+      { id: 's2', type: 'SPENT', value: 199, date: '2026-09-08', time: '10:00', comment: '' },
+      { id: 's3', type: 'SPENT', value: 325, date: '2026-09-09', time: '10:00', comment: '' },
+      { id: 's4', type: 'SPENT', value: 130, date: '2026-09-10', time: '10:00', comment: '' },
+    ];
+    s.appliedDailyDate = '2026-09-09';
+
+    // Old spends inflate totalSpent: 658 + 2118 = 2776
+    assert.equal(app.totalSpent(), 2776);
+
+    app.redistributeDailyBudget();
+
+    // remainingBudget = 5192 - 2776 = 2416, todaySpent = 130, daysLeft = 31
+    // dailyBudget = (2416 + 130) / 31 = 2546 / 31 = 82.13
+    const expectedBad = app.normalize(2546 / 31);
+    assert.equal(s.dailyBudget, expectedBad);
+    assert.notEqual(s.dailyBudget, app.normalize(3204 / 31));
+
+    const pill = app.pillDisplay();
+    assert.equal(pill.isOverdraft, true);
+    assert.equal(pill.value, app.money(app.normalize(2416 / 30)));
+    assert.notEqual(pill.value, app.money(app.normalize(3074 / 30)));
+  });
+
+  it('freshSaveWallet edit path clears stale spends when start date moves forward', () => {
+    const t = setup({ frozenToday: '2026-09-10' });
+    const app = t.app;
+    const s = activeBudgetState(t);
+
+    s.budget = 4000;
+    s.startDate = '2026-09-01';
+    s.finishDate = '2026-09-30';
+    s.transactions = [
+      { id: 'old-income', type: 'INCOME', value: 4000, date: '2026-09-01', time: '00:00', comment: '' },
+      { id: 'old1', type: 'SPENT', value: 300, date: '2026-09-02', time: '10:00', comment: 'old' },
+      { id: 'old2', type: 'SPENT', value: 358, date: '2026-09-05', time: '10:00', comment: 'old' },
+    ];
+
+    t.dbg.setSheet('wallet');
+    t.dbg.setStartingNewPeriod(false);
+    const fakeForm = { _fields: { budget: '5192', startDate: '2026-09-07', finishDate: '2026-10-10', currency: 'PHP' } };
+    const event = { preventDefault() {}, currentTarget: fakeForm };
+    app.freshSaveWallet(event);
+
+    // Old spends before new start date are dropped
+    assert.equal(s.transactions.filter(i => i.type === 'SPENT').length, 0);
+    assert.equal(app.totalSpent(), 0);
+
+    // dailyBudget is correct: no stale spends inflate it
+    // remaining = max(0, 5192 - (0 - 0)) = 5192 (no spends today)
+    // days = daysBetween('2026-09-10', '2026-10-10') = 31
+    // dailyBudget = 5192 / 31 = 167.48
+    const expectedCorrect = app.normalize(5192 / 31);
+    assert.equal(s.dailyBudget, expectedCorrect);
+  });
+
+  it('freshSaveWallet edit keeps spends when start date unchanged', () => {
+    const t = setup({ frozenToday: '2026-09-10' });
+    const app = t.app;
+    const s = activeBudgetState(t);
+
+    s.budget = 5192;
+    s.startDate = '2026-09-07';
+    s.finishDate = '2026-10-10';
+    s.transactions = [
+      { id: 'income', type: 'INCOME', value: 5192, date: '2026-09-07', time: '00:00', comment: '' },
+      { id: 's1', type: 'SPENT', value: 1464, date: '2026-09-07', time: '10:00', comment: '' },
+      { id: 's2', type: 'SPENT', value: 199, date: '2026-09-08', time: '10:00', comment: '' },
+    ];
+
+    t.dbg.setSheet('wallet');
+    t.dbg.setStartingNewPeriod(false);
+    const fakeForm = { _fields: { budget: '6000', startDate: '2026-09-07', finishDate: '2026-10-15', currency: 'PHP' } };
+    const event = { preventDefault() {}, currentTarget: fakeForm };
+    app.freshSaveWallet(event);
+
+    // Spends within the period are kept
+    assert.equal(s.transactions.filter(i => i.type === 'SPENT').length, 2);
+    assert.equal(app.totalSpent(), 1663);
+
+    // dailyBudget is correct: only current spends counted
+    // remaining = max(0, 6000 - (1663 - 0)) = 4337
+    // days = daysBetween('2026-09-10', '2026-10-15') = 36
+    const expected = app.normalize(4337 / 36);
+    assert.equal(s.dailyBudget, expected);
+  });
+});
+
 describe('wallet edit then delete restores dailyBudget', () => {
   let t;
   let app;

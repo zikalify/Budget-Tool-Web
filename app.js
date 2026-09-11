@@ -1277,6 +1277,13 @@ function freshSaveWallet(event) {
     const budgetChanged = nextBudget !== state.budget;
     const dateChanged = start !== state.startDate || finish !== state.finishDate;
     if (budgetChanged || dateChanged) {
+      // When the start date moves forward, drop spends that predate the new
+      // period so they don't inflate totalSpent and shrink the daily budget.
+      if (start > state.startDate) {
+        state.transactions = state.transactions.filter(item =>
+          item.type === 'INCOME' || item.date >= start
+        );
+      }
       // Redistribute over the remaining days. Today's own spend stays out of the
       // pool because the "left today" figure subtracts it again — keeping it in
       // would shrink today's allowance whenever the change is smaller than what
