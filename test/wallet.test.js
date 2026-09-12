@@ -202,6 +202,29 @@ describe('wallet', () => {
       assert.ok(list.length > 100);
     });
 
+    it('supportedCurrencies never lists testing or unknown codes', () => {
+      const list = app.supportedCurrencies();
+      assert.ok(!list.includes('XTS'));
+      assert.ok(!list.includes('XXX'));
+    });
+
+    it('currency names are pinned English names, identical on every device', () => {
+      assert.equal(app.currencyName('GBP'), 'British Pound');
+      assert.equal(app.currencyName('USD'), 'US Dollar');
+      assert.equal(app.currencyName('EUR'), 'Euro');
+    });
+
+    it('every listed currency has a distinct full name (no "CODE — CODE" rows)', () => {
+      for (const code of app.supportedCurrencies()) {
+        const name = app.currencyName(code);
+        assert.notEqual(name, code, `expected a full name for ${code}`);
+      }
+      const opts = app.currencyOptions();
+      for (const code of app.supportedCurrencies()) {
+        assert.doesNotMatch(opts, new RegExp(`${code} — ${code}`));
+      }
+    });
+
     it('currencyOptions starts with NONE', () => {
       const s = t.setState({ currency: 'EUR' });
       const opts = app.currencyOptions();
