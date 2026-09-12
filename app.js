@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Budget Tool Web — licensed under the GNU General Public License v3.0.
+// See LICENSE for the full text.
 const STORAGE_KEY = 'budget-tool-web-state';
 const dateKey = value => {
   const date = value instanceof Date ? value : new Date(value);
@@ -1407,6 +1410,7 @@ function freshSettingsSheet() {
     + sheetRow({ action: 'analytics', symbol: 'chart', title: 'Analytics', detail: 'See spending patterns' })
     + sheetRow({ action: 'export', symbol: 'download', title: 'Export CSV', detail: 'Save every spend' })
     + '<div class="about-copy">Budget Tool Web<br><small>Private, local, and offline.</small></div>'
+    + '<div class="source-link"><a href="https://github.com/zikalify/Budget-Tool-Web" target="_blank" rel="noopener">View source code</a><small>GPL-3.0</small></div>'
     + '<div class="ko-fi"><a href="https://ko-fi.com/V7U426QKAR" target="_blank" aria-label="Support Budget Tool Web on Ko-fi"><img height="36" style="border:0;height:36px;" src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" alt="Buy Me a Coffee at ko-fi.com" /></a></div>'
     + '</section></div>';
 }

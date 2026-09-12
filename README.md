@@ -71,3 +71,9 @@ Budget Tool Web is inspired by [Buckwheat](https://buckwheat.app) — the Androi
 - `sw.js`: offline service-worker cache.
 - `manifest.webmanifest`: installable PWA manifest.
 - `icons/money-bags.svg`: app icon.
+
+## License
+
+Budget Tool Web is an independent implementation inspired by [Buckwheat](https://github.com/danilkinkin/buckwheat) by [Danil Zakhvatkin](https://github.com/danilkinkin) and contributors (licensed under the GNU GPL v3.0). It contains no copied Buckwheat source code; the original author's copyright is acknowledged in the Credits section above.
+
+Budget Tool Web itself is licensed under the **GNU General Public License v3.0**. See [LICENSE](LICENSE) for the full text.

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Budget Tool Web — licensed under the GNU General Public License v3.0.
+   See LICENSE for the full text. */
 /* Material You (Material 3) Design System for Budget Tool Web */
 :root {
   /* Dynamic M3 Tonal Palette - Sage / Fresh Green Theme */
@@ -1199,6 +1202,24 @@ svg {
   font-size: 13px;
   line-height: 1.6;
   padding: 32px 0 12px;
+}
+
+.source-link {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 16px;
+  font-size: 13px;
+}
+
+.source-link a {
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+.source-link small {
+  color: var(--md-sys-color-outline);
 }
 
 .ko-fi {

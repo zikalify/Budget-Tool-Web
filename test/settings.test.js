@@ -25,4 +25,11 @@ describe('settings sheet footer', () => {
     assert.ok(html.includes('target="_blank"'));
     assert.ok(html.includes('src="https://storage.ko-fi.com/cdn/kofi6.png'));
   });
+
+  it('links to the public source repository in a new tab', () => {
+    const html = app.freshSettingsSheet();
+    assert.ok(html.includes('href="https://github.com/zikalify/Budget-Tool-Web"'));
+    assert.ok(html.includes('>View source code</a>'));
+    assert.ok(html.includes('rel="noopener"'));
+  });
 });
