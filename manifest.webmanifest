@@ -6,7 +6,8 @@
   "display": "standalone",
   "background_color": "#f1f5ec",
   "icons": [
-    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ],
   "shortcuts": [
     {

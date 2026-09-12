@@ -42,6 +42,12 @@
     </linearGradient>
   </defs>
 
+  <!-- Opaque full-bleed canvas: Chrome's PWA splash composites transparent
+       pixels as black, which showed as black corners around the rounded badge.
+       Fill the whole 192x192 canvas with the manifest background_color so the
+       icon blends seamlessly into the splash. -->
+  <rect x="0" y="0" width="192" height="192" fill="#f1f5ec" />
+
   <!-- Background Material Squircle Container -->
   <rect x="12" y="12" width="168" height="168" rx="52" fill="url(#bg-badge)" />
   
