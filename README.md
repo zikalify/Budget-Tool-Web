@@ -1,6 +1,6 @@
 # Budget Tool Web
 
-Budget Tool Web is a private, offline-first daily budget planner inspired by the Buckwheat Android app. It helps you divide a budget across a fixed period, record spending as it happens, and keep the amount available for today visible.
+Budget Tool Web is a private, offline-first daily budget planner inspired by the [Buckwheat Android app](https://github.com/danilkinkin/buckwheat). It helps you divide a budget across a fixed period, record spending as it happens, and keep the amount available for today visible.
 
 It is a simple static web app designed to run on GitHub Pages. No account or backend is required: budget data is stored locally in the browser.
 
@@ -58,6 +58,10 @@ The generated `dist/` directory can be deployed to GitHub Pages as a static site
 ## PWA Installation
 
 Open the deployed HTTPS site, or the app on `localhost`, in a browser that supports PWAs. Use the browser's install command to add Budget Tool Web to the desktop or home screen. Once cached, the editor, wallet, history, analytics, and locally stored data remain available offline.
+
+## Credits
+
+Budget Tool Web is inspired by [Buckwheat](https://buckwheat.app) — the Android daily budget planner developed by [Danil Zakhvatkin](https://github.com/danilkinkin) and [contributors](https://github.com/danilkinkin/buckwheat/graphs/contributors). Source: <https://github.com/danilkinkin/buckwheat>. Thanks to them for the original idea and design inspiration.
 
 ## Project Files
 
