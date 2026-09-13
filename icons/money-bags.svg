@@ -9,11 +9,8 @@
       <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#ffffff" flood-opacity="0.45" />
     </filter>
 
-    <!-- Material You Gold & Sage Gradients -->
-    <linearGradient id="bg-badge" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e8f5e5" />
-      <stop offset="100%" stop-color="#cde8ca" />
-    </linearGradient>
+    <!-- Material You Gold & Sage Gradients (canvas matches the PWA
+         manifest background_color so no edge shows) -->
 
     <!-- Coin Outer Rim & Bevel -->
     <linearGradient id="coin-rim" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -42,20 +39,14 @@
     </linearGradient>
   </defs>
 
-  <!-- Opaque full-bleed canvas: Chrome's PWA splash composites transparent
-       pixels as black, which showed as black corners around the rounded badge.
-       Fill the whole 192x192 canvas with the manifest background_color so the
-       icon blends seamlessly into the splash. -->
+  <!-- Opaque full-bleed canvas in the manifest background_color: Chrome's
+       PWA splash composites transparent pixels as black, so the canvas must
+       stay fully opaque. The coin floats directly on it with no container
+       shape, so no square edges show on the splash. -->
   <rect x="0" y="0" width="192" height="192" fill="#f1f5ec" />
 
-  <!-- Background Material Squircle Container -->
-  <rect x="12" y="12" width="168" height="168" rx="52" fill="url(#bg-badge)" />
-  
-  <!-- Subtle decorative ring on container -->
-  <rect x="12" y="12" width="168" height="168" rx="52" fill="none" stroke="#2d6a4f" stroke-opacity="0.12" stroke-width="3" />
-
-  <!-- Coin Group with M3 Elevation -->
-  <g filter="url(#m3-shadow)">
+  <!-- Coin Group with M3 Elevation, scaled up to fill the badge-free canvas -->
+  <g filter="url(#m3-shadow)" transform="translate(96 97) scale(1.18) translate(-96 -97)">
     <!-- 3D Coin Edge / Thickness Layer -->
     <ellipse cx="96" cy="103" rx="56" ry="56" fill="#ba6804" />
     
