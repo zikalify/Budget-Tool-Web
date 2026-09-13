@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Budget Tool Web — licensed under the GNU General Public License v3.0.
 // See LICENSE for the full text.
-const CACHE = 'budget-tool-web-v100';
-const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/money-bags.svg', './fonts/fonts.css', './fonts/roboto-variable.woff2', './fonts/roboto-variable-ext.woff2', './fonts/roboto-flex-variable.woff2', './fonts/roboto-flex-variable-ext.woff2'];
+const CACHE = 'budget-tool-web-v101';
+const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/money-bags.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './fonts/fonts.css', './fonts/roboto-variable.woff2', './fonts/roboto-variable-ext.woff2', './fonts/roboto-flex-variable.woff2', './fonts/roboto-flex-variable-ext.woff2'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));

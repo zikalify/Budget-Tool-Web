@@ -6,8 +6,10 @@
   "display": "standalone",
   "background_color": "#f1f5ec",
   "icons": [
-    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/money-bags.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
   "shortcuts": [
     {
@@ -15,21 +17,21 @@
       "short_name": "Add",
       "description": "Record a new expense",
       "url": "./",
-      "icons": [{ "src": "icons/money-bags.svg", "sizes": "any" }]
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "History Ledger",
       "short_name": "History",
       "description": "View past transactions",
       "url": "./#history",
-      "icons": [{ "src": "icons/money-bags.svg", "sizes": "any" }]
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Spending Analytics",
       "short_name": "Analytics",
       "description": "View spending patterns and insights",
       "url": "./#analytics",
-      "icons": [{ "src": "icons/money-bags.svg", "sizes": "any" }]
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
