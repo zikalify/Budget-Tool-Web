@@ -47,6 +47,15 @@ describe('render / markup', () => {
       assert.match(app.editor(), /new daily/);
     });
 
+    it('edit mode replaces the pill with a cancel-edit control', () => {
+      t.dbg.setEditor({ editingId: 'x', rawValue: '5', editorComment: '', editorDate: app.today(), editorTime: '08:30' });
+      const html = app.editor();
+      assert.doesNotMatch(html, /budget-pill/);
+      assert.match(html, /cancel-edit-pill/);
+      assert.match(html, /Cancel edit/);
+      assert.match(html, /data-action="cancel-edit"/);
+    });
+
     function setOverspent() {
       s.budget = 100;
       s.dailyBudget = 5;

@@ -367,6 +367,52 @@ svg {
   opacity: 0.3;
 }
 
+/* M3 Cancel Edit Pill (Edit Mode). Replaces the budget pill while editing so
+   the remaining amount is never shown against the spend being edited. */
+.cancel-edit-pill {
+  grid-column: 2;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex: 1;
+  height: 48px;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0 20px;
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  box-shadow: var(--md-elevation-1);
+  text-align: left;
+  transition: box-shadow 0.2s var(--md-sys-motion-easing-standard);
+}
+
+.cancel-edit-pill:hover {
+  box-shadow: var(--md-elevation-2);
+}
+
+.cancel-edit-pill:active {
+  box-shadow: var(--md-elevation-1);
+}
+
+.cancel-edit-pill svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.cancel-edit-pill span {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+
 /* Amount Display Section */
 .amount-area {
   display: flex;
@@ -1704,6 +1750,9 @@ input[type='number'] {
     color: var(--md-sys-color-on-surface-variant);
   }
   .budget-pill:hover {
+    box-shadow: var(--md-elevation-1);
+  }
+  .cancel-edit-pill:hover {
     box-shadow: var(--md-elevation-1);
   }
   .comment-done:hover {

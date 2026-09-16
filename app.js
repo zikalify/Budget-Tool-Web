@@ -344,6 +344,7 @@ const ICONS = {
   settings: '<path d="M9.7 3.5 10.5 2h3l.8 1.5 1.7.7 1.7-.4 2.1 2.1-.4 1.7.7 1.7 1.5.8v3l-1.5.8-.7 1.7.4 1.7-2.1 2.1-1.7-.4-1.7.7-.8 1.5h-3l-.8-1.5-1.7-.7-1.7.4-2.1-2.1.4-1.7-.7-1.7L2 13.1v-3l1.5-.8.7-1.7-.4-1.7 2.1-2.1 1.7.4 1.7-.7Z"/><circle cx="12" cy="11.6" r="2.8"/>',
   wallet: '<path d="M4 7h16v12H4zM4 7l2-3h12l2 3M16 13h4"/>',
   back: '<path d="m15 18-6-6 6-6"/>',
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>',
@@ -454,15 +455,18 @@ function editor() {
   const mode = editingId ? 'EDIT' : 'ADD';
   const active = Boolean(rawValue || editorComment || editingId);
   const pill = pillDisplay();
-  const toolbarLeft = mode === 'EDIT'
-    ? `<button class="round-button" data-action="cancel-edit" aria-label="Cancel edit">${icon('back')}</button>`
-    : '<span class="editor-spacer"></span>';
+  // Editing replaces the budget pill with a cancel control so the remaining
+  // amount is never re-derived against the spend being edited (which would
+  // double-subtract it from the daily total). Mirrors the Android app.
+  const centerControl = mode === 'EDIT'
+    ? `<button class="cancel-edit-pill" data-action="cancel-edit" aria-label="Cancel edit">${icon('close')}<span>Cancel edit</span></button>`
+    : `<button class="budget-pill ${pill.isOverdraft ? 'over' : ''}" data-action="wallet"><span class="pill-status">${pill.status}</span><strong>${pill.value}</strong><i style="width:${pill.progress}%"></i></button>`;
   const amountLabel = mode === 'EDIT' ? 'editing spend' : active ? 'current spend' : 'enter a spend';
   const currencyLabel = state.currency === 'NONE' ? '' : state.currency;
   return '<section class="editor-shell">'
     + '<header class="editor-toolbar">'
-    + toolbarLeft
-    + `<button class="budget-pill ${pill.isOverdraft ? 'over' : ''}" data-action="wallet"><span class="pill-status">${pill.status}</span><strong>${pill.value}</strong><i style="width:${pill.progress}%"></i></button>`
+    + '<span class="editor-spacer"></span>'
+    + centerControl
     + `<button class="round-button" data-action="settings" aria-label="Settings">${icon('settings')}</button>`
     + '</header>'
     + '<section class="amount-area">'
